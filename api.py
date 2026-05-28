@@ -7,6 +7,7 @@ import uvicorn
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -74,6 +75,10 @@ except Exception as e:
 
 # --- FastAPI App ---
 app = FastAPI(title="LeadGen Backend API")
+
+# Serve local static assets (used for a local copy of plotly if CDN is blocked)
+if os.path.isdir('static'):
+    app.mount('/static', StaticFiles(directory='static'), name='static')
 
 # Enable CORS for the HTML Frontend
 app.add_middleware(

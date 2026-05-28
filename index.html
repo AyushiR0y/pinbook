@@ -1380,6 +1380,7 @@
             if (window.__plotly_loaderPromise) return window.__plotly_loaderPromise;
 
             const cdns = [
+                '/static/plotly.min.js', // try local copy first (useful in restricted environments)
                 'https://cdn.plot.ly/plotly-2.24.1.min.js',
                 'https://cdn.jsdelivr.net/npm/plotly.js-dist@2.24.1/plotly.min.js'
             ];
