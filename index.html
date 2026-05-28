@@ -827,7 +827,8 @@
 
         // --- State ---
         const state = {
-            apiUrl: localStorage.getItem('apiUrl') || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://127.0.0.1:8000' : window.location.origin),
+            // Default to saved apiUrl, otherwise use the page origin so port/host match where the frontend was served from
+            apiUrl: localStorage.getItem('apiUrl') || window.location.origin,
             currentState: null,
             currentLead: null,
             currentPincode: null,
@@ -1225,18 +1226,19 @@
         const commonLayout = () => {
             const colors = getChartColors();
             return { 
-                paper_bgcolor: colors.bg, 
-                plot_bgcolor: colors.bg, 
-                margin: {t:20,b:60,l:120,r:20}, 
+                paper_bgcolor: colors.bg,
+                plot_bgcolor: colors.bg,
+                autosize: true,
+                margin: {t:20,b:80,l:120,r:20},
                 font: {color: colors.text, size: 11},
-                xaxis: {gridcolor: colors.grid},
-                yaxis: {gridcolor: colors.grid}
+                xaxis: {gridcolor: colors.grid, automargin: true},
+                yaxis: {gridcolor: colors.grid, automargin: true}
             };
         };
 
         function renderDonut(id, data) {
             const colors = getChartColors();
-            Plotly.newPlot(id, [{
+            plotlySafeNewPlot(id, [{
                 type:'pie', 
                 labels:data.labels, 
                 values:data.values, 
@@ -1254,12 +1256,12 @@
                 height:250,
                 margin: {t:10,b:10,l:10,r:10},
                 showlegend: false
-            }, {displayModeBar:false});
+            }, {displayModeBar:false, responsive:true});
         }
 
         function renderPie(id, data) {
             const colors = getChartColors();
-            Plotly.newPlot(id, [{
+            plotlySafeNewPlot(id, [{
                 type:'pie', 
                 labels:data.labels, 
                 values:data.values, 
@@ -1276,12 +1278,12 @@
                 height:250,
                 margin: {t:10,b:10,l:10,r:10},
                 showlegend: false
-            }, {displayModeBar:false});
+            }, {displayModeBar:false, responsive:true});
         }
 
         function renderTreemap(id, data) {
             const colors = getChartColors();
-            Plotly.newPlot(id, [{
+            plotlySafeNewPlot(id, [{
                 type:'treemap', 
                 labels:data.labels, 
                 values:data.values, 
@@ -1297,7 +1299,7 @@
                 ...commonLayout(),
                 height:250,
                 margin: {t:10,b:10,l:10,r:10}
-            }, {displayModeBar:false});
+            }, {displayModeBar:false, responsive:true});
         }
 
         function renderBar(id, data, horiz) {
@@ -1326,7 +1328,7 @@
                 hovertemplate: horiz ? '<b>%{y}</b><br>%{x:,}<extra></extra>' : '<b>%{x}</b><br>%{y:,}<extra></extra>'
             };
             
-            Plotly.newPlot(id, [trace], {
+            plotlySafeNewPlot(id, [trace], {
                 ...commonLayout(),
                 height:250,
                 margin: horiz ? {t:20,b:40,l:180,r:60} : {t:20,b:100,l:40,r:20},
@@ -1344,12 +1346,12 @@
                     color: colors.text,
                     zeroline: false
                 }
-            }, {displayModeBar:false});
+            }, {displayModeBar:false, responsive:true});
         }
 
         function renderFunnel(id, data) {
             const colors = getChartColors();
-            Plotly.newPlot(id, [{
+            plotlySafeNewPlot(id, [{
                 type:'funnel', 
                 x:data.x, 
                 y:data.y, 
@@ -1368,7 +1370,79 @@
                 ...commonLayout(),
                 height:320,
                 margin: {t:20,b:40,l:40,r:40}
-            }, {displayModeBar:false});
+            }, {displayModeBar:false, responsive:true});
+        }
+
+        // Helper: Safe Plotly renderer that forces a resize after plotting.
+        // Load Plotly dynamically with fallback CDNs and return a promise that resolves when ready
+        function loadPlotlyOnce() {
+            if (typeof Plotly !== 'undefined') return Promise.resolve();
+            if (window.__plotly_loaderPromise) return window.__plotly_loaderPromise;
+
+            const cdns = [
+                'https://cdn.plot.ly/plotly-2.24.1.min.js',
+                'https://cdn.jsdelivr.net/npm/plotly.js-dist@2.24.1/plotly.min.js'
+            ];
+
+            window.__plotly_loaderPromise = new Promise((resolve, reject) => {
+                let idx = 0;
+
+                function tryLoad() {
+                    if (typeof Plotly !== 'undefined') return resolve();
+                    if (idx >= cdns.length) return reject(new Error('All Plotly CDNs failed'));
+
+                    const src = cdns[idx++];
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.async = true;
+                    script.onload = () => {
+                        // give a tiny tick for Plotly to initialize
+                        setTimeout(() => {
+                            if (typeof Plotly !== 'undefined') return resolve();
+                            tryLoad();
+                        }, 50);
+                    };
+                    script.onerror = () => {
+                        // try next CDN
+                        tryLoad();
+                    };
+                    document.head.appendChild(script);
+                }
+
+                tryLoad();
+            });
+
+            return window.__plotly_loaderPromise;
+        }
+
+        function plotlySafeNewPlot(id, traces, layout, config) {
+            // Ensure Plotly is loaded then plot
+            loadPlotlyOnce().then(() => {
+                try {
+                    Plotly.newPlot(id, traces, layout, config);
+                } catch (e) {
+                    console.warn('Plotly.newPlot failed initially for', id, e);
+                }
+
+                const el = document.getElementById(id);
+                if (!el) return;
+
+                const tryResize = () => {
+                    try {
+                        if (typeof Plotly !== 'undefined' && Plotly.Plots) {
+                            Plotly.Plots.resize(el);
+                        }
+                    } catch (err) {
+                        // ignore
+                    }
+                };
+
+                setTimeout(tryResize, 150);
+                setTimeout(tryResize, 450);
+                setTimeout(tryResize, 900);
+            }).catch((err) => {
+                console.error('Plotly is not available after trying CDNs. Charts will not render for', id, err);
+            });
         }
 
         // --- 5. Events ---

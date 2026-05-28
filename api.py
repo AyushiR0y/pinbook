@@ -981,20 +981,22 @@ async def get_events(request: dict):
         )
         
         # Update the events prompt in @app.post("/api/events")
-        prompt = f"""Provide a JSON array of 5-7 upcoming cultural events in 2026, festivals, concerts, and parties in {district} district, {state} state, India.
+        prompt = f"""Provide a JSON array of 5-7 upcoming cultural events (festivals, concerts, fairs, parties) in {district} district, {state} state, India.
+
+Only include events that take place in June 2026 or later (for example June 2026 through December 2026). Prefer events occurring within the next 3-6 months when possible.
 
 Format:
 [
-  {{
-    "name": "Event Name",
-    "date": "Date range or specific date",
-    "address": "Specific venue location",
-    "description": "Brief 1-2 sentence description",
-    "website": "Official event website URL (if available, otherwise null)"
-  }}
+    {{
+        "name": "Event Name",
+        "date": "Date range or specific date (e.g., 'June 15-17, 2026')",
+        "address": "Specific venue location",
+        "description": "Brief 1-2 sentence description",
+        "website": "Official event website URL (if available, otherwise null)"
+    }}
 ]
 
-Focus on real events within the next 3-6 months. Include website links when available.
+Focus on real events in June 2026 or later. Include website links when available.
 Return ONLY the JSON array, no other text."""
         response = client.chat.completions.create(
             model=AZURE_OPENAI_DEPLOYMENT_NAME,
@@ -1024,8 +1026,8 @@ Return ONLY the JSON array, no other text."""
     except Exception as e:
         print(f"Error fetching events: {str(e)}")
         return [
-            {"name": "Local Festival", "date": "Next Month", "address": f"{district}", "description": "Annual cultural celebration"},
-            {"name": "Community Fair", "date": "Coming Soon", "address": f"{district}", "description": "Local trade fair"}
+            {"name": "Local Festival", "date": "June 12-14, 2026", "address": f"{district}", "description": "Annual cultural celebration"},
+            {"name": "Community Fair", "date": "July 10, 2026", "address": f"{district}", "description": "Local trade fair"}
         ]
 @app.get("/api/charts/demographics/{pincode}")
 async def get_demographics_charts(pincode: str):
@@ -1068,7 +1070,6 @@ async def get_demographics_charts(pincode: str):
     senior = safe_int(total_pop - child_0_6 - youth - adult)
     
     other_pop = safe_int(total_pop - sc_pop - st_pop)
-    
     return {
         "gender": {
             "labels": ["Male", "Female"],
@@ -1094,7 +1095,7 @@ async def get_demographics_charts(pincode: str):
             "labels": ["Male Workers", "Female Workers"],
             "values": [male_workers, female_workers]
         }
-    }
+        }
 
 # Replace the @app.post("/api/leadership") function
 @app.post("/api/leadership")
