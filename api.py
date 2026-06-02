@@ -228,7 +228,7 @@ def search_places_via_nominatim(lat: float, lng: float, keyword: str, radius_m: 
         headers = {
             "User-Agent": "leadgenerator/1.0 (nearby-business-fallback)",
         }
-        response = requests.get("https://nominatim.openstreetmap.org/search", params=params, headers=headers, timeout=20)
+        response = requests.get("https://nominatim.openstreetmap.org/search", params=params, headers=headers, timeout=20, verify=False)
         response.raise_for_status()
         data = response.json()
     except Exception as error:
@@ -297,7 +297,7 @@ def search_places_via_osm(lat: float, lng: float, keyword: str, radius_m: int = 
     data = None
     for endpoint in overpass_endpoints:
         try:
-            response = requests.post(endpoint, data={"data": overpass_query}, headers=headers, timeout=20)
+            response = requests.post(endpoint, data={"data": overpass_query}, headers=headers, timeout=20, verify=False)
 
             if response.status_code == 429:
                 print(f"Overpass rate limited at {endpoint}")
@@ -898,12 +898,12 @@ async def get_occupation_charts(
     filtered_data = get_occupation_data_filtered(state_upper, gender, area_type)
     
     if filtered_data is None or filtered_data.empty:
-        return {"distribution": None, "breakdown": None, "categories": []}
+        return {"distribution": None, "breakdown": None, "worker_type_breakdown": {}, "categories": []}
 
     bucketed_data, detailed_data, count_col = create_occupation_visualization(filtered_data, gender, worker_type)
     
     if bucketed_data is None or bucketed_data.empty:
-        return {"distribution": None, "breakdown": None, "categories": []}
+        return {"distribution": None, "breakdown": None, "worker_type_breakdown": {}, "categories": []}
 
     # Distribution data (bucketed categories)
     dist_data = {
@@ -932,9 +932,29 @@ async def get_occupation_charts(
         "selected_category": category_to_show
     }
 
+    # Worker type breakdown (doughnut chart data)
+    try:
+        base_filtered = get_occupation_data_filtered(state_upper, gender, area_type)
+        if base_filtered is not None and not base_filtered.empty:
+            base_col = 'Total/Rural/Urban | Males' if gender == 'Male' else ('Total/Rural/Urban | Females' if gender == 'Female' else 'Total/Rural/Urban | Persons')
+            if base_col in base_filtered.columns:
+                worker_breakdown = {
+                    'employer': safe_int(base_filtered.get('Employer | Persons', pd.Series([0])).sum()) if 'Employer | Persons' in base_filtered.columns else 0,
+                    'employee': safe_int(base_filtered.get('Employee | Persons', pd.Series([0])).sum()) if 'Employee | Persons' in base_filtered.columns else 0,
+                    'single_worker': safe_int(base_filtered.get('Single worker | Persons', pd.Series([0])).sum()) if 'Single worker | Persons' in base_filtered.columns else 0,
+                    'family_worker': safe_int(base_filtered.get('Family worker | Persons', pd.Series([0])).sum()) if 'Family worker | Persons' in base_filtered.columns else 0,
+                }
+            else:
+                worker_breakdown = {'employer': 0, 'employee': 0, 'single_worker': 0, 'family_worker': 0}
+        else:
+            worker_breakdown = {'employer': 0, 'employee': 0, 'single_worker': 0, 'family_worker': 0}
+    except:
+        worker_breakdown = {'employer': 0, 'employee': 0, 'single_worker': 0, 'family_worker': 0}
+
     return {
         "distribution": dist_data, 
         "breakdown": breakdown_data,
+        "worker_type_breakdown": worker_breakdown,
         "categories": all_categories  # Return sorted list of categories for dropdown
     }
 @app.get("/api/charts/education")

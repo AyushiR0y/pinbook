@@ -1,2344 +1,589 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lead Intelligence 3D Dashboard</title>
-    
-    <!-- Libraries -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- Config -->
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Outfit', 'sans-serif'] },
-                    colors: {
-                        glass: "rgba(255, 255, 255, 0.03)",
-                        glassBorder: "rgba(255, 255, 255, 0.08)",
-                        primary: "#3b82f6", 
-                        accent: "#8b5cf6"
-                    },
-                    animation: {
-                        'blob': 'blob 7s infinite',
-                        'fade-in-up': 'fadeInUp 0.6s ease-out forwards',
-                    },
-                    keyframes: {
-                        blob: {
-                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
-                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
-                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
-                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
-                        },
-                        fadeInUp: {
-                            '0%': { opacity: '0', transform: 'translateY(20px)' },
-                            '100%': { opacity: '1', transform: 'translateY(0)' },
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-
-    <style>
-        body {
-            background: radial-gradient(circle at top left, #1e1b4b, #0f172a, #020617);
-            color: #e2e8f0;
-            overflow-x: hidden;
-        }
-
-        /* Glassmorphism */
-        .glass-panel {
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
-        }
-
-        /* 3D Interactions */
-        .card-3d {
-            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease;
-            transform-style: preserve-3d;
-        }
-        .card-3d:hover {
-            transform: translateY(-8px) scale(1.01);
-            box-shadow: 0 20px 50px rgba(59, 130, 246, 0.15);
-            border-color: rgba(59, 130, 246, 0.3);
-        }
-
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #475569; }
-
-        /* Loader */
-        .spinner { border: 3px solid rgba(255,255,255,0.1); border-left-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        /* Inputs */
-        input, select, textarea {
-            background: rgba(0, 0, 0, 0.3) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            color: white !important;
-            transition: all 0.3s;
-        }
-        input:focus, select:focus {
-            outline: none;
-            border-color: #3b82f6 !important;
-            box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
-        }
-        /* Light mode specific overrides */
-        /* Light mode specific - Clean whites and greys */
-        body.light-mode .glass-panel {
-            background: #ffffff !important;
-            border-color: rgba(0, 94, 172, 0.15) !important;
-            box-shadow: 0 2px 12px rgba(0, 94, 172, 0.08) !important;
-        }
-
-        body.light-mode #sidebar {
-            background: #f8f9fa !important;
-            border-color: rgba(0, 94, 172, 0.15) !important;
-        }
-
-        body.light-mode input,
-        body.light-mode select,
-        body.light-mode textarea {
-            background: #ffffff !important;
-            border: 1px solid #e5e7eb !important;
-            color: #1e293b !important;
-        }
-
-        body.light-mode input:focus,
-        body.light-mode select:focus,
-        body.light-mode textarea:focus {
-            border-color: #005eac !important;
-            box-shadow: 0 0 0 3px rgba(0, 94, 172, 0.1) !important;
-        }
-
-        /* Light mode - Location info boxes */
-        body.light-mode #loc-pin,
-        body.light-mode #loc-coords {
-            background: #f8f9fa !important;
-            border-color: #e5e7eb !important;
-            color: #1e293b !important;
-        }
-
-        /* Light mode - Tab buttons */
-        body.light-mode .leads-tab {
-            background: #f8f9fa !important;
-            color: #475569 !important;
-            border-color: #e5e7eb !important;
-        }
-
-        body.light-mode .leads-tab.active,
-        body.light-mode .leads-tab:hover {
-            background: #005eac !important;
-            color: #ffffff !important;
-            border-color: #005eac !important;
-        }
-
-        /* Light mode - Table */
-        body.light-mode table {
-            background: #ffffff !important;
-        }
-
-        body.light-mode thead tr {
-            background: #f8f9fa !important;
-            color: #475569 !important;
-        }
-
-        body.light-mode tbody {
-            color: #1e293b !important;
-        }
-
-        body.light-mode tbody tr:hover {
-            background: #f8f9fa !important;
-        }
-
-        body.light-mode #no-leads-msg {
-            color: #64748b !important;
-        }
-
-        /* Light mode text colors */
-        body.light-mode .text-slate-300,
-        body.light-mode .text-slate-400,
-        body.light-mode .text-slate-500 {
-            color: #475569 !important;
-        }
-        body.light-mode #leadership-results .bg-slate-800 {
-            background: #f8f9fa !important;
-            border-color: #e5e7eb !important;
-        }
-
-        body.light-mode #leadership-results .font-bold,
-        body.light-mode #leadership-results .text-sm {
-            color: #0f172a !important;
-        }
-
-        body.light-mode #leadership-results .text-blue-400 {
-            color: #005eac !important;
-        }
-
-        body.light-mode h1, 
-        body.light-mode h2, 
-        body.light-mode h3, 
-        body.light-mode h4, 
-        body.light-mode h5 {
-            color: #0f172a !important;
-        }
-        body:not(.light-mode) .event-card {
-            background: rgba(51, 65, 85, 0.6) !important;
-        }
-
-        body:not(.light-mode) .event-card:hover {
-            background: rgba(71, 85, 105, 0.8) !important;
-            border-color: rgba(236, 72, 153, 0.5) !important;
-        }
-
-        /* Light mode - Event boxes better contrast */
-        body.light-mode .event-card {
-            background: #f1f5f9 !important;
-            border-color: #e2e8f0 !important;
-        }
-
-        body.light-mode .event-card:hover {
-            background: #e0e7ff !important;
-            border-color: #a78bfa !important;
-        }
-
-        body.light-mode .event-card .event-date {
-            color: #db2777 !important;
-        }
-
-        body.light-mode .event-card .event-name {
-            color: #1e293b !important;
-        }
-
-        body.light-mode .event-card .event-location {
-            color: #64748b !important;
-        }
-
-        .event-expanded {
-            max-height: 500px;
-            transition: max-height 0.3s ease;
-        }
-
-        body.light-mode #header-loc,
-        body.light-mode #kpi-pop,
-        body.light-mode #kpi-hh,
-        body.light-mode #kpi-lit,
-        body.light-mode #kpi-work {
-            color: #0f172a !important;
-        }
-
-        /* Light mode - Leads expanded sections */
-        body.light-mode .bg-slate-800\/30 {
-            background: rgba(248, 250, 252, 0.8) !important;
-        }
-
-        body.light-mode .bg-slate-900\/50 {
-            background: rgba(241, 245, 249, 0.9) !important;
-        }
-
-        body.light-mode .bg-purple-900\/30 {
-            background: rgba(196, 181, 253, 0.2) !important;
-        }
-
-        /* Light mode - Agent names in purple boxes */
-        body.light-mode .bg-purple-900\/30 .text-white {
-            color: #603e9a !important;
-        }
-
-        /* Light mode - Company names */
-        body.light-mode .company-name-text {
-            color: #393939 !important;
-        }
-
-        /* Light mode - Addresses in expanded sections */
-        body.light-mode .bg-slate-800\/30 .text-slate-300 {
-            color: #94a3b8 !important;
-        }
-
-        /* Light mode - Global loader */
-        body.light-mode #global-loader {
-            background: rgba(255, 255, 255, 0.95) !important;
-        }
-
-        body.light-mode #global-loader h2 {
-            color: #005eac !important;
-        }
-
-        body.light-mode #global-loader .spinner {
-            border-color: rgba(0, 94, 172, 0.2) !important;
-            border-left-color: #005eac !important;
-        }
-
-        /* Light mode - Modal step 3 (Prospecting) */
-        body.light-mode #modal-step-3 .bg-slate-800 {
-            background: #002f55 !important;
-            border-color: #94a3b8 !important;
-        }
-
-        body.light-mode #modal-step-3 .text-gray-400 {
-            color: #cbd5e1 !important;
-        }
-
-        body.light-mode #res-name {
-            color: #ffffff !important;
-        }
-
-        body.light-mode #res-role {
-            color: #93c5fd !important;
-        }
-
-        body.light-mode #credit-warning-section .text-gray-300 {
-            color: #4b5563 !important;
-        }
-
-        body.light-mode #credit-warning-section .text-xs {
-            color: #6b7280 !important;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pinbook — Market Intelligence Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="static/style.css" />
 </head>
-<body class="min-h-screen flex relative selection:bg-blue-500 selection:text-white transition-colors duration-300" id="app-body">
+<body>
 
-    <!-- Theme Toggle Button - Bottom Right -->
-    <button onclick="toggleTheme()" class="fixed bottom-8 right-8 z-50 w-14 h-14 rounded-full glass-panel flex items-center justify-center hover:scale-110 transition-all shadow-2xl border border-white/10" id="theme-toggle">
-        <i class="fas fa-moon text-yellow-400 text-xl" id="theme-icon"></i>
-    </button>
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- SCREEN 1: Landing / Entry                  -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="screen-landing" class="screen active">
+    <div class="grid-bg"></div>
+    <div class="landing-center">
+      <div class="landing-card">
+        <!-- Logo -->
+        <div class="brand-lockup">
+          <div class="brand-icon"><i class="fa-solid fa-location-dot"></i></div>
+          <span class="brand-name">Pinbook</span>
+        </div>
 
-    <!-- Background Effects -->
-    <div class="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none" id="bg-effects">
-        <div class="absolute top-0 -left-4 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div class="absolute top-0 -right-4 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div class="absolute -bottom-8 left-20 w-72 h-72 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        <h1 class="landing-headline">Turn a PIN code into actionable market intelligence.</h1>
+        <p class="landing-subtext">Analyze demographics, industries, businesses, and leadership insights using public data.</p>
+
+        <div class="input-group" id="pin-input-group">
+          <label for="pin-input" class="input-label">PIN Code / Postal Code</label>
+          <div class="input-wrapper">
+            <i class="fa-solid fa-location-crosshairs input-icon"></i>
+            <input
+              type="text"
+              id="pin-input"
+              class="pin-input"
+              placeholder="Enter 6-digit PIN code"
+              maxlength="6"
+              inputmode="numeric"
+              autocomplete="off"
+            />
+          </div>
+          <span class="input-error" id="pin-error"><i class="fa-solid fa-circle-exclamation"></i> <span id="pin-error-text">Please enter a valid 6-digit PIN code.</span></span>
+        </div>
+
+        <button id="btn-analyze" class="btn-primary btn-full" disabled>
+          <i class="fa-solid fa-chart-mixed"></i>
+          Analyze Location
+        </button>
+
+        <div class="trust-footer">
+          <i class="fa-solid fa-lock"></i>
+          All insights are derived from publicly available information.
+        </div>
+      </div>
     </div>
+  </div>
 
-    <!-- Global Loader -->
-    <div id="global-loader" class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-md transition-opacity duration-500 opacity-0 pointer-events-none">
-        <div class="w-16 h-16 spinner border-t-transparent"></div>
-        <h2 class="mt-6 text-xl font-light tracking-[0.2em] text-blue-400 animate-pulse">ANALYZING</h2>
-    </div>
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- SCREEN 2: Insight Selection                 -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="screen-selection" class="screen">
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="header-brand" id="btn-home">
+          <div class="brand-icon brand-icon--sm"><i class="fa-solid fa-location-dot"></i></div>
+          <span class="brand-name brand-name--sm">Pinbook</span>
+        </div>
+        <div class="header-pin-badge">
+          <i class="fa-solid fa-map-pin"></i>
+          <span id="header-pin-display">—</span>
+        </div>
+      </div>
+    </header>
 
-    <!-- Sidebar -->
-    <aside class="w-80 h-screen glass-panel z-30 flex flex-col border-r border-white/5 fixed md:relative -translate-x-full md:translate-x-0 transition-transform duration-300" id="sidebar">
-        <div class="p-8 border-b border-white/5">
-            <h1 class="text-2xl font-bold tracking-tight flex items-center gap-3" id="sidebar-title">
-                <div class="w-8 h-8 rounded-lg
-                            bg-gradient-to-tr from-[#005eac] to-[#0a6fc4]
-                            flex items-center justify-center
-                            shadow-lg shadow-[#005eac]/30">
-                    <i class="fas fa-map-marker-alt text-white text-sm"></i>
-                </div>
+    <main class="selection-main">
+      <div class="selection-header">
+        <h2 class="selection-title">What would you like to explore?</h2>
+        <p class="selection-subtitle">Select one or more insight types for this location. You can explore others later.</p>
+        <div class="location-pill" id="selection-location-pill">
+          <i class="fa-solid fa-circle-dot"></i>
+          <span id="selection-location-text">Loading location…</span>
+        </div>
+      </div>
 
-
-                PinBook
-            </h1>
+      <div class="cards-grid">
+        <!-- Card 1: Demographics -->
+        <div class="insight-card" data-module="demographics" tabindex="0" role="checkbox" aria-checked="false">
+          <div class="card-check"><i class="fa-solid fa-check"></i></div>
+          <div class="card-icon-wrap card-icon--blue">
+            <i class="fa-solid fa-people-group"></i>
+          </div>
+          <div class="card-content">
+            <h3 class="card-title">Location Demographics</h3>
+            <p class="card-desc">Population, income levels, age distribution, urbanization, growth indicators</p>
+          </div>
+          <div class="card-tag"><i class="fa-solid fa-chart-bar"></i> Census Data</div>
         </div>
 
-        <div class="flex-1 overflow-y-auto p-6 space-y-8">
-            
-            <!-- Search -->
-            <div>
-                <label class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 block">Target Location</label>
-                <div class="relative group">
-                    <i class="fas fa-map-marker-alt absolute left-4 top-3.5 text-slate-500 group-focus-within:text-blue-400 transition-colors"></i>
-                    <input type="text" id="pincode-input" class="w-full pl-10 pr-4 py-3 rounded-xl text-sm font-medium" placeholder="Enter 6-digit Pincode">
-                </div>
-                <button onclick="executeSearch()"
-                    class="w-full mt-4 bg-gradient-to-r from-[#005eac] to-[#004b8a]
-                            hover:from-[#0a6fc4] hover:to-[#005eac]
-                            text-white font-bold py-3 rounded-xl
-                            shadow-lg shadow-blue-900/40
-                            transition-all transform active:scale-95
-                            flex justify-center items-center gap-2">
-
-                    <i class="fas fa-search"></i> Initiate Search
-                </button>
-            </div>
-
-
-
-            <div class="text-xs text-slate-600 text-center mt-auto">
-                &copy; 2024 Lead Intelligence
-            </div>
-        </div>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="flex-1 overflow-y-auto h-screen relative scroll-smooth pb-20">
-        
-        <!-- Mobile Toggle -->
-        <div class="absolute top-4 left-4 z-20 md:hidden">
-            <button onclick="toggleSidebar()" class="p-3 bg-slate-800/80 backdrop-blur rounded-xl text-white shadow-lg border border-white/10"><i class="fas fa-bars"></i></button>
+        <!-- Card 2: Industry -->
+        <div class="insight-card" data-module="industry" tabindex="0" role="checkbox" aria-checked="false">
+          <div class="card-check"><i class="fa-solid fa-check"></i></div>
+          <div class="card-icon-wrap card-icon--indigo">
+            <i class="fa-solid fa-industry"></i>
+          </div>
+          <div class="card-content">
+            <h3 class="card-title">Industry Presence</h3>
+            <p class="card-desc">Dominant sectors, workforce concentration, market maturity, growth trends</p>
+          </div>
+          <div class="card-tag"><i class="fa-solid fa-chart-line"></i> Sector Analysis</div>
         </div>
 
-        <!-- Top Header -->
-        <div class="sticky top-0 z-10 px-8 py-4 glass-panel backdrop-blur-md border-b border-white/5 flex justify-end">
-            <div class="flex items-center gap-4">
-                <div class="text-right">
-                    <p class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Current Session</p>
-                    <p id="header-loc" class="text-sm font-medium">Waiting for input...</p>
-                </div>
-                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 p-[2px]">
-                    <div class="w-full h-full rounded-full bg-slate-900 flex items-center justify-center">
-                        <i class="fas fa-user text-slate-300"></i>
-                    </div>
-                </div>
-            </div>
+        <!-- Card 3: Businesses -->
+        <div class="insight-card" data-module="businesses" tabindex="0" role="checkbox" aria-checked="false">
+          <div class="card-check"><i class="fa-solid fa-check"></i></div>
+          <div class="card-icon-wrap card-icon--teal">
+            <i class="fa-solid fa-building"></i>
+          </div>
+          <div class="card-content">
+            <h3 class="card-title">Nearby Businesses</h3>
+            <p class="card-desc">Active companies, categories, scale, and regional footprint</p>
+          </div>
+          <div class="card-tag"><i class="fa-solid fa-map-location-dot"></i> Local Ecosystem</div>
         </div>
 
-        <!-- Container -->
-        <div class="p-4 md:p-10 max-w-[1600px] mx-auto space-y-8 pt-24">
-            
-            <!-- 1. Empty State -->
-            <div id="empty-state" class="min-h-[60vh] flex flex-col items-center justify-center text-slate-500">
-                <div class="w-40 h-40 rounded-full border border-slate-700 bg-slate-900/50 flex items-center justify-center relative mb-8 group">
-                    <i class="fas fa-globe-americas text-4xl text-slate-600 group-hover:text-blue-500 transition-colors duration-500"></i>
-                    <div class="absolute inset-0 rounded-full border border-slate-700 scale-125 animate-ping opacity-20"></div>
-                </div>
-                <h2 class="text-3xl font-bold mb-2" id="empty-title">Location-Based Lead Intelligence</h2>
-                <p class="text-sm">Enter a pincode to view area demographics, local events, and businesses, along with relevant contact information.</p>
-            </div>
-
-            <!-- 2. Location Result Section -->
-            <div id="section-location" class="hidden glass-panel rounded-3xl p-6 md:p-10 card-3d animate-fade-in-up">
-                <div class="flex justify-between items-start mb-8 gap-6">
-                    <div class="flex-1">
-                        <h2 class="text-3xl font-bold mb-1" id="loc-title">Location Name</h2>
-                        <p class="text-blue-400 font-medium" id="loc-subtitle">District, State</p>
-                        <div class="flex gap-4 mt-4 text-xs text-slate-400 flex-wrap">
-                            <span id="loc-pin" class="px-3 py-1 bg-slate-800 rounded border border-white/10">PIN: 000000</span>
-                            <span id="loc-coords" class="px-3 py-1 bg-slate-800 rounded border border-white/10">00.0000, 00.0000</span>
-                        </div>
-                    </div>
-                    <div class="flex-shrink-0">
-                        <div id="map-container" class="w-80 h-60 rounded-xl border border-white/10 relative overflow-hidden shadow-lg">
-                            <!-- Map will be injected here -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 3. Demographics & Charts Section -->
-            <div id="section-demographics" class="hidden space-y-6 animate-fade-in-up" style="animation-delay: 0.1s;">
-                
-                <!-- KPI Row -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div class="glass-panel p-6 rounded-2xl card-3d border-t-2 border-t-blue-500">
-                        <div class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-2">Total Population</div>
-                        <h3 class="text-3xl font-bold" id="kpi-pop">0</h3>
-                    </div>
-                    <div class="glass-panel p-6 rounded-2xl card-3d border-t-2 border-t-purple-500">
-                        <div class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-2">Households</div>
-                        <h3 class="text-3xl font-bold" id="kpi-hh">0</h3>
-                    </div>
-                    <div class="glass-panel p-6 rounded-2xl card-3d border-t-2 border-t-green-500">
-                        <div class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-2">Literacy</div>
-                        <h3 class="text-3xl font-bold" id="kpi-lit">0%</h3>
-                    </div>
-                    <div class="glass-panel p-6 rounded-2xl card-3d border-t-2 border-t-orange-500">
-                        <div class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-2">Work Rate</div>
-                        <h3 class="text-3xl font-bold" id="kpi-work">0%</h3>
-                    </div>
-                </div>
-
-                <!-- Population Breakdown Section -->
-                <!-- Population Breakdown Section -->
-                <div class="glass-panel p-6 rounded-2xl card-3d">
-                    <h3 class="text-xl font-bold mb-6 flex items-center gap-2">
-                        <i class="fas fa-users text-blue-400"></i> Population Breakdown
-                    </h3>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div>
-                            <h4 class="text-sm font-bold text-slate-400 mb-3 uppercase tracking-wider">Gender Distribution</h4>
-                            <div id="chart-gender" class="h-64"></div>
-                        </div>
-                        <div>
-                            <h4 class="text-sm font-bold text-slate-400 mb-3 uppercase tracking-wider">Age Groups</h4>
-                            <div id="chart-age" class="h-64"></div>
-                        </div>
-                        <div>
-                            <h4 class="text-sm font-bold text-slate-400 mb-3 uppercase tracking-wider">Social Composition</h4>
-                            <div id="chart-social" class="h-64"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Education & Employment Section -->
-                <div class="glass-panel p-6 rounded-2xl card-3d">
-                    <h3 class="text-xl font-bold mb-6 flex items-center gap-2">
-                        <i class="fas fa-graduation-cap text-purple-400"></i> Education & Employment
-                    </h3>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div>
-                            <h4 class="text-sm font-bold text-slate-400 mb-3 uppercase tracking-wider">Literacy Status</h4>
-                            <div id="chart-literacy" class="h-64"></div>
-                        </div>
-                        <div>
-                            <h4 class="text-sm font-bold text-slate-400 mb-3 uppercase tracking-wider">Work Participation</h4>
-                            <div id="chart-work" class="h-64"></div>
-                        </div>
-                        <div>
-                            <h4 class="text-sm font-bold text-slate-400 mb-3 uppercase tracking-wider">Workers by Gender</h4>
-                            <div id="chart-workers-gender" class="h-64"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Charts Grid -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    
-                    <!-- Education Funnel -->
-                    <div class="glass-panel p-6 rounded-2xl card-3d">
-                        <h4 class="font-bold text-lg mb-6 flex items-center gap-2">
-                            <i class="fas fa-user-graduate text-purple-400"></i>Education Funnel (State Level)
-                        </h4>
-                        <div id="chart-edu-funnel" class="h-80"></div>
-                    </div>
-
-                    <!-- Industrial -->
-                    <div class="glass-panel p-6 rounded-2xl card-3d">
-                        <div class="flex justify-between items-center mb-6 flex-wrap gap-2">
-                            <h4 class="font-bold text-lg flex items-center gap-2">
-                                <i class="fas fa-industry text-blue-400"></i>Industrial Analysis
-                            </h4>
-                            <div class="flex gap-2 flex-wrap">
-                                <select id="ind-religion" class="text-[10px] rounded px-2 py-1" onchange="updateIndustrialCharts()">
-                                    <option value="All">All Religions</option>
-                                </select>
-                                <select id="ind-gender" class="text-[10px] rounded px-2 py-1" onchange="updateIndustrialCharts()">
-                                    <option value="All">All Genders</option>
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <h5 class="text-xs font-bold text-slate-400 mb-2 uppercase">HHI vs Non-HHI</h5>
-                                <div id="chart-ind-donut" class="h-64"></div>
-                            </div>
-                            <div>
-                                <h5 class="text-xs font-bold text-slate-400 mb-2 uppercase">Category Breakdown</h5>
-                                <div id="chart-ind-treemap" class="h-64"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Occupation (Span 2) -->
-                    <!-- Replace the Occupation section in your HTML -->
-                    <div class="glass-panel p-6 rounded-2xl card-3d lg:col-span-2">
-                        <div class="flex justify-between items-center mb-6 flex-wrap gap-2">
-                            <h4 class="font-bold text-lg flex items-center gap-2">
-                                <i class="fas fa-users-cog text-orange-400"></i>Occupation Classification (State Level)
-                            </h4>
-                            <div class="flex gap-2 flex-wrap">
-                                <select id="occ-area" class="text-[10px] rounded px-2 py-1" onchange="updateOccupationCharts()">
-                                    <option value="All">All Areas</option>
-                                </select>
-                                <select id="occ-gender" class="text-[10px] rounded px-2 py-1" onchange="updateOccupationCharts()">
-                                    <option value="All">All Genders</option>
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
-                                </select>
-                                <select id="occ-worker" class="text-[10px] rounded px-2 py-1" onchange="updateOccupationCharts()">
-                                    <option value="All">All Workers</option>
-                                    <option value="Employer">Employer</option>
-                                    <option value="Employee">Employee</option>
-                                    <option value="Single worker">Single Worker</option>
-                                    <option value="Family worker">Family Worker</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <h5 class="text-xs font-bold text-slate-400 mb-2 uppercase">Distribution</h5>
-                                <div id="chart-occ-dist" class="h-80"></div>
-                            </div>
-                            <div>
-                                <div class="flex justify-between items-center mb-2">
-                                    <h5 class="text-xs font-bold text-slate-400 uppercase">Detailed Breakdown</h5>
-                                    <select id="occ-category-dropdown" class="text-[10px] rounded px-2 py-1" onchange="updateOccupationBreakdown()">
-                                        <option value="">Select Category...</option>
-                                    </select>
-                                </div>
-                                <div id="chart-occ-breakdown" class="h-80"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 4. Events Section -->
-            <div id="section-events" class="hidden animate-fade-in-up" style="animation-delay: 0.2s;">
-                <div class="glass-panel p-6 rounded-2xl border-t-4 border-t-pink-500">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-xl font-bold flex items-center gap-2">
-                            <i class="fas fa-calendar-alt text-pink-500"></i> Upcoming Events
-                        </h2>
-                        <button id="load-events-btn" onclick="loadEvents()" class="px-4 py-2 bg-pink-600 hover:bg-pink-500 text-white text-sm font-bold rounded-lg transition shadow-lg">
-                            <i class="fas fa-download mr-2"></i>Load Events
-                        </button>
-                    </div>
-                    <div id="events-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div class="col-span-full text-center text-slate-500 py-8">
-                            Click "Load Events" to fetch upcoming events in this area
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 5. Business Leads Section -->
-             <div id="section-leads" class="hidden animate-fade-in-up" style="animation-delay: 0.3s;">
-                <div class="glass-panel p-6 rounded-2xl border-t-4 border-t-emerald-500">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-xl font-bold flex items-center gap-2">
-                            <i class="fas fa-building text-emerald-500"></i> Nearby Business Leads
-                        </h2>
-                        <button id="load-leads-btn" onclick="loadLeads()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-lg transition shadow-lg">
-                            <i class="fas fa-download mr-2"></i>Load Leads (10km)
-                        </button>
-                    </div>
-
-                    <!-- Search Bar for Leads -->
-                    <div class="flex gap-2 w-full mb-6 hidden" id="leads-search-bar">
-                        <div class="relative flex-1 md:w-64">
-                            <input 
-                                type="text" 
-                                id="company-search-input" 
-                                placeholder="Filter companies by name..." 
-                                class="w-full px-4 py-2 pl-10 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                                onkeypress="if(event.key === 'Enter') searchCompanies()"
-                            >
-                            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
-                        </div>
-                        <button 
-                            id="search-companies-btn" 
-                            onclick="searchCompanies()" 
-                            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-lg transition shadow-lg whitespace-nowrap"
-                        >
-                            <i class="fas fa-filter mr-2"></i>Search
-                        </button>
-                    </div>
-                    
-                    <!-- Leads Tabs -->
-                    <div class="flex space-x-2 mb-6 overflow-x-auto pb-2" id="leads-tabs">
-                        <button onclick="switchLeadsTab('industries')" class="leads-tab active px-4 py-2 rounded-lg text-sm font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">Industries</button>
-                        <button onclick="switchLeadsTab('insurance')" class="leads-tab px-4 py-2 rounded-lg text-sm font-bold bg-slate-800 text-slate-400 hover:bg-slate-700 border border-transparent whitespace-nowrap">Insurance</button>
-                        <button onclick="switchLeadsTab('banks')" class="leads-tab px-4 py-2 rounded-lg text-sm font-bold bg-slate-800 text-slate-400 hover:bg-slate-700 border border-transparent whitespace-nowrap">Banks</button>
-                        <button onclick="switchLeadsTab('colleges')" class="leads-tab px-4 py-2 rounded-lg text-sm font-bold bg-slate-800 text-slate-400 hover:bg-slate-700 border border-transparent whitespace-nowrap">Colleges</button>
-                        <button onclick="switchLeadsTab('clubs')" class="leads-tab px-4 py-2 rounded-lg text-sm font-bold bg-slate-800 text-slate-400 hover:bg-slate-700 border border-transparent whitespace-nowrap">Clubs</button>
-                    </div>
-
-                    <!-- Leads Table -->
-                    <div class="overflow-x-auto rounded-xl border border-white/10 bg-slate-900/30 max-h-96 overflow-y-auto">
-                        <table class="w-full text-left">
-                            <thead class="sticky top-0 bg-white/5">
-                                <tr class="bg-white/5 text-slate-400 text-xs uppercase tracking-wider">
-                                    <th class="p-4">Business Name</th>
-                                    <th class="p-4">Address</th>
-                                    <th class="p-4">Distance</th>
-                                    <th class="p-4">Rating</th>
-                                    <th class="p-4 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="leads-table-body" class="text-sm divide-y divide-white/5">
-                                <!-- Rows injected via JS -->
-                            </tbody>
-                        </table>
-                        <div id="no-leads-msg" class="py-12 text-center text-slate-500 italic">
-                            Click "Load Leads" button above to fetch business leads
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-
+        <!-- Card 4: Lead Intelligence -->
+        <div class="insight-card" data-module="leads" tabindex="0" role="checkbox" aria-checked="false">
+          <div class="card-check"><i class="fa-solid fa-check"></i></div>
+          <div class="card-icon-wrap card-icon--amber">
+            <i class="fa-solid fa-user-tie"></i>
+          </div>
+          <div class="card-content">
+            <h3 class="card-title">Leadership & Decision-Makers</h3>
+            <p class="card-desc">Identify key people and explore detailed public profiles</p>
+          </div>
+          <div class="card-badge-kyl">
+            <i class="fa-solid fa-bolt"></i> Powered by KnowYourLead
+          </div>
         </div>
+      </div>
+
+      <div class="selection-actions">
+        <button id="btn-back-landing" class="btn-ghost"><i class="fa-solid fa-arrow-left"></i> Back</button>
+        <button id="btn-continue" class="btn-primary" disabled>
+          Continue <i class="fa-solid fa-arrow-right"></i>
+        </button>
+      </div>
     </main>
+  </div>
 
-    <!-- LEADERSHIP & CONTACT MODAL -->
-    <div id="contact-modal" class="fixed inset-0 z-[60] hidden flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onclick="closeModal()"></div>
-        
-        <div class="relative w-full max-w-lg glass-panel rounded-2xl shadow-2xl shadow-blue-900/40 transform scale-95 opacity-0 transition-all duration-300" id="modal-content">
-            
-            <!-- Header -->
-            <div class="p-6 border-b border-white/5 flex justify-between items-center bg-slate-800/50 rounded-t-2xl">
-                <div>
-                    <h3 class="text-lg font-bold" id="modal-title">Prospecting</h3>
-                    <p class="text-xs text-slate-400" id="modal-subtitle">Company Name</p>
-                </div>
-                <button onclick="closeModal()" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- SCREEN 3: Insights Dashboard               -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="screen-dashboard" class="screen">
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="header-brand" id="btn-home-dash">
+          <div class="brand-icon brand-icon--sm"><i class="fa-solid fa-location-dot"></i></div>
+          <span class="brand-name brand-name--sm">Pinbook</span>
+        </div>
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+          <span class="crumb" id="btn-breadcrumb-home">Pinbook</span>
+          <i class="fa-solid fa-chevron-right crumb-sep"></i>
+          <span class="crumb crumb--active" id="breadcrumb-pin">PIN —</span>
+        </nav>
+        <div class="header-actions">
+          <button class="btn-ghost btn-sm" id="btn-change-selections"><i class="fa-solid fa-sliders"></i> Modules</button>
+          <button class="btn-ghost btn-sm" id="btn-new-search"><i class="fa-solid fa-rotate-right"></i> New Search</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Dashboard Hero -->
+    <div class="dash-hero">
+      <div class="dash-hero-inner">
+        <div class="dash-pin-block">
+          <span class="dash-pin-label">PIN Code</span>
+          <span class="dash-pin-value" id="dash-pin-value">—</span>
+        </div>
+        <div class="dash-location-block">
+          <i class="fa-solid fa-location-dot"></i>
+          <div>
+            <div class="dash-city" id="dash-city">—</div>
+            <div class="dash-state" id="dash-state">—</div>
+          </div>
+        </div>
+        <div class="dash-meta-tags" id="dash-meta-tags"></div>
+      </div>
+    </div>
+
+    <main class="dash-main">
+      <!-- Loading state -->
+      <div id="dash-loading" class="dash-loading">
+        <div class="spinner"></div>
+        <p>Fetching intelligence for this location…</p>
+      </div>
+
+      <!-- Modules Container -->
+      <div id="dash-modules" class="dash-modules" style="display:none;">
+
+        <!-- MODULE A: Demographics -->
+        <section class="dash-module" id="module-demographics" style="display:none;">
+          <div class="module-header">
+            <div class="module-icon module-icon--blue"><i class="fa-solid fa-people-group"></i></div>
+            <div>
+              <h2 class="module-title">Demographic Snapshot</h2>
+              <p class="module-subtitle" id="demo-location-label">District-level census data</p>
             </div>
+            <div class="module-source-badge">Census of India</div>
+          </div>
 
-            <div class="p-6 space-y-6">
-                
-                <!-- Step 1: Search Leadership -->
-                <div id="modal-step-1" class="space-y-4">
-                    <h4 class="text-sm font-bold">Find Key Decision Makers</h4>
-                    <p class="text-xs text-slate-400 mb-4">Search for leadership profiles of this company</p>
-                    <button onclick="fetchLeadership()" 
-                            class="w-full bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition shadow-lg shadow-blue-900/20">
-                        <i class="fas fa-search mr-2"></i>Search Leadership
-                    </button>
+          <!-- Key Metrics Row -->
+          <div class="metrics-row" id="demo-metrics-row">
+            <div class="metric-card">
+              <span class="metric-label">Total Population</span>
+              <span class="metric-value" id="dm-total-pop">—</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Households</span>
+              <span class="metric-value" id="dm-households">—</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Literacy Rate</span>
+              <span class="metric-value" id="dm-literacy">—</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Work Participation</span>
+              <span class="metric-value" id="dm-work-rate">—</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Sex Ratio</span>
+              <span class="metric-value" id="dm-sex-ratio">—</span>
+            </div>
+          </div>
+
+          <!-- Charts Row 1 -->
+          <div class="charts-row">
+            <div class="chart-card">
+              <div class="chart-card-header">
+                <span class="chart-title">Gender Distribution</span>
+              </div>
+              <div class="chart-container" style="height:220px;">
+                <canvas id="chart-gender"></canvas>
+              </div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-card-header">
+                <span class="chart-title">Age Group Breakdown</span>
+              </div>
+              <div class="chart-container" style="height:220px;">
+                <canvas id="chart-age"></canvas>
+              </div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-card-header">
+                <span class="chart-title">Social Composition</span>
+              </div>
+              <div class="chart-container" style="height:220px;">
+                <canvas id="chart-social"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Charts Row 2 -->
+          <div class="charts-row">
+            <div class="chart-card">
+              <div class="chart-card-header">
+                <span class="chart-title">Literacy Status</span>
+              </div>
+              <div class="chart-container" style="height:200px;">
+                <canvas id="chart-literacy"></canvas>
+              </div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-card-header">
+                <span class="chart-title">Workforce Participation</span>
+              </div>
+              <div class="chart-container" style="height:200px;">
+                <canvas id="chart-work"></canvas>
+              </div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-card-header">
+                <span class="chart-title">Gender of Workers</span>
+              </div>
+              <div class="chart-container" style="height:200px;">
+                <canvas id="chart-workers-gender"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Education Funnel -->
+          <div class="chart-card chart-card--full">
+            <div class="chart-card-header">
+              <span class="chart-title">Education Level Funnel</span>
+              <span class="chart-badge">State-level data</span>
+            </div>
+            <div class="chart-container" style="height:260px;">
+              <canvas id="chart-education"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <!-- MODULE B: Industry -->
+        <section class="dash-module" id="module-industry" style="display:none;">
+          <div class="module-header">
+            <div class="module-icon module-icon--indigo"><i class="fa-solid fa-industry"></i></div>
+            <div>
+              <h2 class="module-title">Industry Distribution</h2>
+              <p class="module-subtitle">Industrial category and occupation data by state</p>
+            </div>
+            <div class="module-source-badge">Census Industrial Data</div>
+          </div>
+
+          <!-- Filter Bar -->
+          <div class="filter-bar">
+            <div class="filter-group">
+              <label class="filter-label">Gender</label>
+              <select class="filter-select" id="industry-gender">
+                <option value="All">All</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Area Type</label>
+              <select class="filter-select" id="industry-tru">
+                <option value="All">All</option>
+                <option value="Rural">Rural</option>
+                <option value="Urban">Urban</option>
+              </select>
+            </div>
+            <button class="btn-filter" id="btn-apply-industry-filter"><i class="fa-solid fa-filter"></i> Apply</button>
+          </div>
+
+          <!-- HHI vs Non-HHI Donut -->
+          <div class="charts-row charts-row--2col">
+            <div class="chart-card">
+              <div class="chart-card-header">
+                <span class="chart-title">Household vs Formal Industry</span>
+                <span class="chart-badge">HHI vs Non-HHI</span>
+              </div>
+              <div class="chart-container" style="height:280px;">
+                <canvas id="chart-hhi-donut"></canvas>
+              </div>
+              <div class="chart-legend-custom" id="hhi-legend"></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-card-header">
+                <span class="chart-title">Top Industry Subcategories</span>
+              </div>
+              <div class="chart-container" style="height:280px;">
+                <canvas id="chart-industry-bars"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Occupation Distribution -->
+          <div class="chart-card chart-card--full">
+            <div class="chart-card-header">
+              <span class="chart-title">Occupation Category Distribution</span>
+              <div class="chart-header-controls">
+                <select class="filter-select filter-select--sm" id="occ-worker-type">
+                  <option value="All">All Workers</option>
+                  <option value="Employer">Employers</option>
+                  <option value="Employee">Employees</option>
+                  <option value="Single worker">Self-Employed</option>
+                  <option value="Family worker">Family Workers</option>
+                </select>
+              </div>
+            </div>
+            <div class="charts-row charts-row--2col">
+              <div class="chart-card">
+                <div class="chart-card-header">
+                  <span class="chart-title">Occupation Categories</span>
                 </div>
-
-                <!-- Step 2: Results List -->
-                <div id="modal-step-2" class="hidden animate-fade-in-up">
-                    <div class="flex items-center justify-between mb-4">
-                        <h4 class="text-xs font-bold text-slate-500 uppercase">Found Profiles</h4>
-                        <div class="flex items-center gap-2">
-                            <button id="export-leaders-btn" onclick="exportLeaders()" class="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded transition hidden">
-                                Export CSV
-                            </button>
-                        </div>
-                    </div>
-                    <div id="leadership-results" class="space-y-3 max-h-60 overflow-y-auto pr-2">
-                        <!-- Cards Injected -->
-                    </div>
+                <div class="chart-container" style="height:280px;">
+                  <canvas id="chart-occupation"></canvas>
                 </div>
-
-                <!-- In your modal step 3 -->
-                <div id="modal-step-3" class="hidden modal-step space-y-4">
-                    <!-- Selected Person Info -->
-                    <div class="bg-slate-800 rounded-lg p-4 border border-white/5">
-                        <div class="text-xs text-gray-400 mb-2">Selected Person</div>
-                        <div class="flex justify-between items-center mb-2">
-                            <div>
-                                <div class="font-bold text-lg" id="res-name">-</div>
-                                <div class="text-sm text-blue-400" id="res-role">-</div>
-                            </div>
-                            <div class="flex gap-2">
-                                <button onclick="resetModalStep(2)" class="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded transition">Back</button>
-                            </div>
-                        </div>
-                        <a id="res-linkedin" href="#" target="_blank" class="text-xs text-emerald-400 hover:underline">
-                            <i class="fab fa-linkedin mr-1"></i>View LinkedIn
-                        </a>
-                    </div>
-
-                    <!-- Credit Warning Section (Dynamic) -->
-                    <div id="credit-warning-section" class="space-y-3">
-                        <div class="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
-                            <div class="text-yellow-400 text-sm font-semibold mb-2">
-                                <i class="fas fa-coins mr-2"></i>Credits Required
-                            </div>
-                            <div class="text-xs text-gray-300 space-y-1">
-                                <div>📧 Email: 1 credit (<span id="email-credits-count">...</span> remaining)</div>
-                                <div>📱 Phone: 1 credit (<span id="phone-credits-count">...</span> remaining)</div>
-                            </div>
-                        </div>
-                        
-                        <div class="grid grid-cols-2 gap-2">
-                            <button onclick="requestContactInfo('email')" 
-                                    class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm transition shadow-lg shadow-blue-900/20">
-                                <i class="fas fa-envelope mr-2"></i>Get Email
-                            </button>
-                            <button onclick="requestContactInfo('phone')" 
-                                    class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded text-sm transition shadow-lg shadow-purple-900/20">
-                                <i class="fas fa-phone mr-2"></i>Get Phone
-                            </button>
-                        </div>
-                        
-                        <button onclick="requestContactInfo('both')" 
-                                class="w-full bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded text-sm transition shadow-lg shadow-emerald-900/20">
-                            <i class="fas fa-address-card mr-2"></i>Get Both (2 credits)
-                        </button>
-                        <div class="text-center text-xs text-slate-400 mt-2">Press <strong>Back</strong> to return to the list.</div>
-                    </div>
-
-                    <!-- Loading State -->
-                    <div id="contact-loading" class="hidden text-center py-6">
-                        <i class="fas fa-circle-notch fa-spin text-3xl text-blue-400 mb-3"></i>
-                        <div class="text-sm text-gray-400">Fetching from ContactOut...</div>
-                    </div>
-
-                    <!-- Contact Data Display -->
-                    <div id="contact-data" class="hidden space-y-2">
-                        <div id="email-row" class="hidden bg-slate-800/50 rounded p-3 border border-green-500/30 flex items-center justify-between">
-                            <div>
-                                <div class="text-xs text-gray-400">Email</div>
-                                <div class="font-mono text-sm text-green-400" id="res-email">-</div>
-                            </div>
-                            <i class="fas fa-check-circle text-green-500"></i>
-                        </div>
-                        <div id="phone-row" class="hidden bg-slate-800/50 rounded p-3 border border-purple-500/30 flex items-center justify-between">
-                            <div>
-                                <div class="text-xs text-gray-400">Phone</div>
-                                <div class="font-mono text-sm text-purple-400" id="res-phone">-</div>
-                            </div>
-                            <i class="fas fa-check-circle text-purple-500"></i>
-                        </div>
-                        <button onclick="resetModalStep(2)" class="w-full mt-4 text-xs text-slate-500 hover:text-white underline">
-                            Back to search results
-                        </button>
-                    </div>
+              </div>
+              <div class="chart-card">
+                <div class="chart-card-header">
+                  <span class="chart-title">Worker Type Breakdown</span>
                 </div>
-
-    <!-- JAVASCRIPT LOGIC -->
-    <script>
-        // --- Theme Management ---
-        // --- Theme Management ---
-        let isDarkMode = localStorage.getItem('theme') !== 'light';
-
-        function toggleTheme() {
-            isDarkMode = !isDarkMode;
-            applyTheme();
-            localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
-        }
-
-        function applyTheme() {
-            const body = document.getElementById('app-body');
-            const icon = document.getElementById('theme-icon');
-            const bgEffects = document.getElementById('bg-effects');
-            
-            if (isDarkMode) {
-                body.classList.remove('light-mode');
-                body.style.background = 'radial-gradient(circle at top left, #1e1b4b, #0f172a, #020617)';
-                body.style.color = '#e2e8f0';
-                icon.className = 'fas fa-sun text-yellow-400 text-xl';
-                bgEffects.classList.remove('hidden');
-            } else {
-                body.classList.add('light-mode');
-                body.style.background = '#ffffff';
-                body.style.color = '#1e293b';
-                icon.className = 'fas fa-moon text-slate-700 text-xl';
-                bgEffects.classList.add('hidden');
-            }
-            
-            // Re-render charts with new theme
-            if (state.currentPincode) {
-                updateAllCharts();
-            }
-        }
-
-        // Apply theme on load
-        window.addEventListener('DOMContentLoaded', () => {
-            applyTheme();
-        });
-
-        // --- State ---
-        const state = {
-            // Default to saved apiUrl, otherwise use the page origin so port/host match where the frontend was served from
-            apiUrl: localStorage.getItem('apiUrl') || window.location.origin,
-            currentState: null,
-            currentLead: null,
-            currentPincode: null,
-            currentDistrict: null,
-            cache: JSON.parse(localStorage.getItem('leadgenCache') || '{}')
-        };
-
-        // --- Cache Utilities ---
-        function getCached(key) {
-            const cached = state.cache[key];
-            if (!cached) return null;
-            if (Date.now() - cached.timestamp < 3600000) {
-                return cached.data;
-            }
-            return null;
-        }
-
-        function setCache(key, data) {
-            state.cache[key] = {
-                data: data,
-                timestamp: Date.now()
-            };
-            localStorage.setItem('leadgenCache', JSON.stringify(state.cache));
-        }
-
-        // --- Setup ---
-        window.onload = () => {
-            testConnection();
-        };
-
-        // --- UI Utilities ---
-        const loader = document.getElementById('global-loader');
-        function showLoader(msg = "Analyzing...") {
-            loader.classList.remove('pointer-events-none', 'opacity-0');
-            loader.querySelector('h2').textContent = msg;
-        }
-        function hideLoader() {
-            loader.classList.add('pointer-events-none', 'opacity-0');
-        }
-
-        function toggleSidebar() {
-            document.querySelector('aside').classList.toggle('-translate-x-full');
-        }
-
-        function updateConnectionStatus(isOnline) {
-            const dot = document.getElementById('connection-status');
-            dot.className = `w-2 h-2 rounded-full shadow-[0_0_8px] transition-colors ${isOnline ? 'bg-green-500 shadow-green-500' : 'bg-red-500 shadow-red-500'}`;
-        }
-
-        async function testConnection() {
-            try {
-                const response = await fetch(`${state.apiUrl}/api/search/000000`);
-                updateConnectionStatus(true);
-            } catch (e) { 
-                updateConnectionStatus(false); 
-            }
-        }
-
-        function saveSettings() {
-            state.apiUrl = document.getElementById('api-url').value;
-            localStorage.setItem('apiUrl', state.apiUrl);
-            alert("Settings Saved");
-            testConnection();
-        }
-
-        // --- Map Rendering ---
-        function renderMap(lat, lng) {
-            const mapContainer = document.getElementById('map-container');
-            const iframe = `<iframe 
-                width="100%" 
-                height="100%" 
-                frameborder="0" 
-                style="border:0; border-radius: 12px;" 
-                referrerpolicy="no-referrer-when-downgrade"
-                src="https://www.openstreetmap.org/export/embed.html?bbox=${lng-0.02},${lat-0.02},${lng+0.02},${lat+0.02}&layer=mapnik&marker=${lat},${lng}"
-                allowfullscreen>
-            </iframe>`;
-            mapContainer.innerHTML = iframe;
-        }
-
-        // --- 1. Search Execution ---
-        async function executeSearch() {
-            const pin = document.getElementById('pincode-input').value.trim();
-            if(pin.length !== 6 || !pin.match(/^\d{6}$/)) {
-                alert("Please enter a valid 6-digit pincode");
-                return;
-            }
-            
-            const cacheKey = `search_${pin}`;
-            const cached = getCached(cacheKey);
-            
-            if (cached) {
-                console.log("Using cached search data");
-                populateUIFromCache(cached, pin);
-                return;
-            }
-            
-            showLoader("Geolocating...");
-            state.currentPincode = pin;
-
-            try {
-                const res = await fetch(`${state.apiUrl}/api/search/${pin}`);
-                if(!res.ok) throw new Error("Location not found");
-                const data = await res.json();
-
-                state.currentState = data.location.state;
-                state.currentDistrict = data.location.district;
-                
-                setCache(cacheKey, data);
-
-                document.getElementById('empty-state').classList.add('hidden');
-                ['section-location', 'section-demographics', 'section-events', 'section-leads'].forEach(id => {
-                    document.getElementById(id).classList.remove('hidden');
-                });
-
-
-                updateLocationUI(data.location);
-                updateKPIs(data.demographics);
-                renderMap(data.location.lat, data.location.lng);
-
-                Promise.all([
-                    loadDemographicCharts(pin),
-                    updateEducationCharts(),
-                    updateIndustrialCharts(),
-                    updateOccupationCharts()
-                ]);
-
-            } catch (e) {
-                console.error(e);
-                alert("Analysis Failed: " + e.message);
-            } finally {
-                hideLoader();
-            }
-        }
-
-        function populateUIFromCache(data, pin) {
-            state.currentState = data.location.state;
-            state.currentDistrict = data.location.district;
-            state.currentPincode = pin;
-            
-            document.getElementById('empty-state').classList.add('hidden');
-            ['section-location', 'section-demographics', 'section-events', 'section-leads'].forEach(id => {
-                document.getElementById(id).classList.remove('hidden');
-            });
-            
-
-            
-            updateLocationUI(data.location);
-            updateKPIs(data.demographics);
-            renderMap(data.location.lat, data.location.lng);
-            
-            Promise.all([
-                loadDemographicCharts(pin),  // ADD THIS LINE
-                updateEducationCharts(),
-                updateIndustrialCharts(),
-                updateOccupationCharts()
-            ]);
-        }
-        
-        // --- 2. Location & Demographics UI ---
-        function updateLocationUI(loc) {
-            document.getElementById('header-loc').textContent = `${loc.district}, ${loc.state}`;
-            document.getElementById('loc-title').textContent = loc.address;
-            document.getElementById('loc-subtitle').textContent = `${loc.district}, ${loc.state}`;
-            document.getElementById('loc-pin').textContent = `PIN: ${state.currentPincode}`;
-            document.getElementById('loc-coords').textContent = `${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`;
-        }
-
-        function updateKPIs(demo) {
-            animateValue('kpi-pop', demo.total_pop);
-            animateValue('kpi-hh', demo.households);
-            document.getElementById('kpi-lit').textContent = demo.literacy + "%";
-            document.getElementById('kpi-work').textContent = demo.work_rate + "%";
-        }
-
-        function animateValue(id, end) {
-            const obj = document.getElementById(id);
-            let start = 0, duration = 1000;
-            let startTime = null;
-            const step = (ts) => {
-                if (!startTime) startTime = ts;
-                const progress = Math.min((ts - startTime)/duration, 1);
-                obj.innerHTML = Math.floor(progress * (end - start) + start).toLocaleString();
-                if(progress < 1) window.requestAnimationFrame(step);
-            };
-            window.requestAnimationFrame(step);
-        }
-
-        // --- 3. Demographic Charts ---
-        // --- 3. Demographic Charts ---
-        async function loadDemographicCharts(pincode) {
-            if(!pincode) return;
-            
-            const cacheKey = `demo_charts_${pincode}`;
-            const cached = getCached(cacheKey);
-            
-            if (cached) {
-                renderDemographicCharts(cached);
-                return;
-            }
-            
-            try {
-                const url = `${state.apiUrl}/api/charts/demographics/${pincode}`;
-                const response = await fetch(url);
-                if (!response.ok) throw new Error('Failed to fetch demographic charts');
-                
-                const data = await response.json();
-                setCache(cacheKey, data);
-                renderDemographicCharts(data);
-            } catch(e) {
-                console.error('Demographic charts error:', e);
-            }
-        }
-
-        function renderDemographicCharts(data) {
-            if (data.gender) renderDonut('chart-gender', data.gender);
-            if (data.age) renderPie('chart-age', data.age);
-            if (data.social) renderBar('chart-social', data.social, false);
-            if (data.literacy) renderDonut('chart-literacy', data.literacy);
-            if (data.work) renderPie('chart-work', data.work);
-            if (data.workers_gender) renderBar('chart-workers-gender', data.workers_gender, false);
-        }
-
-        // --- 4. Education, Industrial, Occupation Charts ---
-        async function updateEducationCharts() {
-            if(!state.currentState) return;
-            
-            const cacheKey = `edu_${state.currentState}`;
-            const cached = getCached(cacheKey);
-            
-            if (cached) {
-                renderFunnel('chart-edu-funnel', cached);
-                return;
-            }
-            
-            try {
-                const url = `${state.apiUrl}/api/charts/education?state=${encodeURIComponent(state.currentState)}`;
-                const response = await fetch(url);
-                if (!response.ok) throw new Error('Failed to fetch education data');
-                
-                const data = await response.json();
-                if(data && data.y && data.y.length > 0) {
-                    setCache(cacheKey, data);
-                    renderFunnel('chart-edu-funnel', data);
-                }
-            } catch(e) {
-                console.error('Education charts error:', e);
-            }
-        }
-
-        async function updateIndustrialCharts() {
-            if(!state.currentState) return;
-            
-            try {
-                const religion = document.getElementById('ind-religion').value || 'All';
-                const gender = document.getElementById('ind-gender').value || 'All';
-                
-                const cacheKey = `ind_${state.currentState}_${religion}_${gender}`;
-                const cached = getCached(cacheKey);
-                
-                if (cached) {
-                    if(cached.donut) renderDonut('chart-ind-donut', cached.donut);
-                    if(cached.treemap) renderTreemap('chart-ind-treemap', cached.treemap);
-                    return;
-                }
-                
-                const url = `${state.apiUrl}/api/charts/industrial?state=${encodeURIComponent(state.currentState)}&religion=${religion}&gender=${gender}&age_group=All&tru=All`;
-                
-                const response = await fetch(url);
-                if (!response.ok) throw new Error('Failed to fetch industrial data');
-                
-                const data = await response.json();
-                
-                if(data.donut && data.donut.values && data.donut.values.length > 0) {
-                    setCache(cacheKey, data);
-                    renderDonut('chart-ind-donut', data.donut);
-                }
-                if(data.treemap && data.treemap.values && data.treemap.values.length > 0) {
-                    renderTreemap('chart-ind-treemap', data.treemap);
-                }
-            } catch(e) {
-                console.error('Industrial charts error:', e);
-            }
-        }
-
-        // Global state for occupation data
-        let currentOccupationData = null;
-
-        // Replace the entire updateOccupationCharts function
-        async function updateOccupationCharts() {
-            if(!state.currentState) return;
-            
-            try {
-                const area = document.getElementById('occ-area').value || 'All';
-                const gender = document.getElementById('occ-gender').value || 'All';
-                const worker = document.getElementById('occ-worker').value || 'All';
-                
-                const cacheKey = `occ_${state.currentState}_${area}_${gender}_${worker}`;
-                const cached = getCached(cacheKey);
-                
-                let data;
-                if (cached) {
-                    data = cached;
-                } else {
-                    const url = `${state.apiUrl}/api/charts/occupation?state=${encodeURIComponent(state.currentState)}&area_type=${area}&gender=${gender}&worker_type=${worker}`;
-                    const response = await fetch(url);
-                    if (!response.ok) throw new Error('Failed to fetch occupation data');
-                    
-                    data = await response.json();
-                    setCache(cacheKey, data);
-                }
-                
-                // Store the full data globally
-                currentOccupationData = data;
-                
-                // Render distribution chart
-                if(data.distribution && data.distribution.y && data.distribution.y.length > 0) {
-                    renderBar('chart-occ-dist', data.distribution, true);
-                }
-                
-                // Populate category dropdown
-                const dropdown = document.getElementById('occ-category-dropdown');
-                if (data.categories && data.categories.length > 0) {
-                    dropdown.innerHTML = data.categories.map(cat => 
-                        `<option value="${cat}" ${cat === data.breakdown?.selected_category ? 'selected' : ''}>${cat}</option>`
-                    ).join('');
-                    
-                    // Render initial breakdown
-                    if(data.breakdown && data.breakdown.y && data.breakdown.y.length > 0) {
-                        renderBar('chart-occ-breakdown', data.breakdown, true);
-                    }
-                } else {
-                    dropdown.innerHTML = '<option value="">No categories available</option>';
-                }
-            } catch(e) {
-                console.error('Occupation charts error:', e);
-            }
-        }
-
-        // Add new function for updating breakdown when category changes
-        async function updateOccupationBreakdown() {
-            if(!state.currentState) return;
-            
-            const dropdown = document.getElementById('occ-category-dropdown');
-            const selectedCategory = dropdown.value;
-            
-            if (!selectedCategory) return;
-            
-            const area = document.getElementById('occ-area').value || 'All';
-            const gender = document.getElementById('occ-gender').value || 'All';
-            const worker = document.getElementById('occ-worker').value || 'All';
-            
-            try {
-                const url = `${state.apiUrl}/api/charts/occupation?state=${encodeURIComponent(state.currentState)}&area_type=${area}&gender=${gender}&worker_type=${worker}&selected_category=${encodeURIComponent(selectedCategory)}`;
-                const response = await fetch(url);
-                if (!response.ok) throw new Error('Failed to fetch occupation breakdown');
-                
-                const data = await response.json();
-                
-                if(data.breakdown && data.breakdown.y && data.breakdown.y.length > 0) {
-                    renderBar('chart-occ-breakdown', data.breakdown, true);
-                }
-            } catch(e) {
-                console.error('Occupation breakdown error:', e);
-            }
-        }
-
-        function updateAllCharts() {
-            if (state.currentPincode) {
-                loadDemographicCharts(state.currentPincode);
-                updateEducationCharts();
-                updateIndustrialCharts();
-                updateOccupationCharts();
-            }
-        }
-
-        // --- Plotly Chart Helpers ---
-        // --- Plotly Chart Helpers with Varied Colors ---
-        function getChartColors() {
-            return isDarkMode 
-                ? {
-                    bg: 'rgba(0,0,0,0)', 
-                    text: '#e2e8f0', 
-                    grid: '#1e293b',
-                    palette: ['#005eac', '#0077cc', '#4a9eff', '#7cb8ff', '#a3d5ff']
-                }
-                : {
-                    bg: 'rgba(255,255,255,0)', 
-                    text: '#1e293b', 
-                    grid: '#e5e7eb',
-                    palette: ['#005eac', '#0077cc', '#4a9eff', '#7cb8ff', '#a3d5ff']
-                };
-        }
-
-        const commonLayout = () => {
-            const colors = getChartColors();
-            return { 
-                paper_bgcolor: colors.bg,
-                plot_bgcolor: colors.bg,
-                autosize: true,
-                margin: {t:20,b:80,l:120,r:20},
-                font: {color: colors.text, size: 11},
-                xaxis: {gridcolor: colors.grid, automargin: true},
-                yaxis: {gridcolor: colors.grid, automargin: true}
-            };
-        };
-
-        function renderDonut(id, data) {
-            const colors = getChartColors();
-            plotlySafeNewPlot(id, [{
-                type:'pie', 
-                labels:data.labels, 
-                values:data.values, 
-                hole:0.65, 
-                textinfo:'label+percent',
-                textposition: 'outside',
-                marker:{
-                    colors: colors.palette,
-                    line: {color: isDarkMode ? '#0f172a' : '#ffffff', width: 3}
-                },
-                hovertemplate: '<b>%{label}</b><br>%{value:,}<br>%{percent}<extra></extra>',
-                textfont: {color: colors.text, size: 10}
-            }], {
-                ...commonLayout(),
-                height:250,
-                margin: {t:10,b:10,l:10,r:10},
-                showlegend: false
-            }, {displayModeBar:false, responsive:true});
-        }
-
-        function renderPie(id, data) {
-            const colors = getChartColors();
-            plotlySafeNewPlot(id, [{
-                type:'pie', 
-                labels:data.labels, 
-                values:data.values, 
-                marker:{
-                    colors: ['#005eac', '#0077cc', '#4a9eff', '#7cb8ff'],
-                    line: {color: isDarkMode ? '#0f172a' : '#ffffff', width: 3}
-                },
-                textinfo:'label+percent',
-                textposition: 'outside',
-                hovertemplate: '<b>%{label}</b><br>%{value:,}<br>%{percent}<extra></extra>',
-                textfont: {color: colors.text, size: 10}
-            }], {
-                ...commonLayout(),
-                height:250,
-                margin: {t:10,b:10,l:10,r:10},
-                showlegend: false
-            }, {displayModeBar:false, responsive:true});
-        }
-
-        function renderTreemap(id, data) {
-            const colors = getChartColors();
-            plotlySafeNewPlot(id, [{
-                type:'treemap', 
-                labels:data.labels, 
-                values:data.values, 
-                parents:Array(data.labels.length).fill(''), 
-                marker:{
-                    colors: data.values.map((v, i) => colors.palette[i % colors.palette.length]),
-                    line: {color: isDarkMode ? '#0f172a' : '#ffffff', width: 2}
-                },
-                textposition: 'middle center',
-                textfont: {color: '#ffffff', size: 10, weight: 600},
-                hovertemplate: '<b>%{label}</b><br>%{value:,}<extra></extra>'
-            }], {
-                ...commonLayout(),
-                height:250,
-                margin: {t:10,b:10,l:10,r:10}
-            }, {displayModeBar:false, responsive:true});
-        }
-
-        function renderBar(id, data, horiz) {
-            const colors = getChartColors();
-            const values = data.x || data.values;
-            const labels = data.y || data.labels;
-            
-            // Create gradient colors
-            const barColors = Array.isArray(values) 
-                ? values.map((v, i) => colors.palette[i % colors.palette.length])
-                : colors.palette[0];
-            
-            const trace = {
-                type:'bar', 
-                orientation: horiz ? 'h' : 'v', 
-                x: horiz ? values : labels, 
-                y: horiz ? labels : values, 
-                marker:{
-                    color: barColors,
-                    line: {color: isDarkMode ? '#0f172a' : '#ffffff', width: 1}
-                },
-                text: values,
-                texttemplate: '%{text:,.0f}',
-                textposition: 'outside',
-                textfont: {color: colors.text, size: 10},
-                hovertemplate: horiz ? '<b>%{y}</b><br>%{x:,}<extra></extra>' : '<b>%{x}</b><br>%{y:,}<extra></extra>'
-            };
-            
-            plotlySafeNewPlot(id, [trace], {
-                ...commonLayout(),
-                height:250,
-                margin: horiz ? {t:20,b:40,l:180,r:60} : {t:20,b:100,l:40,r:20},
-                xaxis:{
-                    showgrid: true, 
-                    gridcolor: colors.grid, 
-                    tickangle: horiz ? 0 : -45, 
-                    color: colors.text,
-                    zeroline: false
-                },
-                yaxis:{
-                    showgrid: true, 
-                    gridcolor: colors.grid, 
-                    automargin: true, 
-                    color: colors.text,
-                    zeroline: false
-                }
-            }, {displayModeBar:false, responsive:true});
-        }
-
-        function renderFunnel(id, data) {
-            const colors = getChartColors();
-            plotlySafeNewPlot(id, [{
-                type:'funnel', 
-                x:data.x, 
-                y:data.y, 
-                marker:{
-                    color: ['#005eac', '#0077cc', '#4a9eff', '#7cb8ff', '#a3d5ff'],
-                    line: {color: isDarkMode ? '#0f172a' : '#ffffff', width: 2}
-                },
-                textinfo: 'value+percent initial',
-                textposition: 'inside',
-                textfont: {color: '#ffffff', size: 11, weight: 600},
-                hovertemplate: '<b>%{y}</b><br>%{x:,}<extra></extra>',
-                connector: {
-                    line: {color: colors.palette[0], width: 2}
-                }
-            }], {
-                ...commonLayout(),
-                height:320,
-                margin: {t:20,b:40,l:40,r:40}
-            }, {displayModeBar:false, responsive:true});
-        }
-
-        // Helper: Safe Plotly renderer that forces a resize after plotting.
-        // Load Plotly dynamically with fallback CDNs and return a promise that resolves when ready
-        function loadPlotlyOnce() {
-            if (typeof Plotly !== 'undefined') return Promise.resolve();
-            if (window.__plotly_loaderPromise) return window.__plotly_loaderPromise;
-
-            const cdns = [
-                '/static/plotly.min.js', // try local copy first (useful in restricted environments)
-                'https://cdn.plot.ly/plotly-2.24.1.min.js',
-                'https://cdn.jsdelivr.net/npm/plotly.js-dist@2.24.1/plotly.min.js'
-            ];
-
-            window.__plotly_loaderPromise = new Promise((resolve, reject) => {
-                let idx = 0;
-
-                function tryLoad() {
-                    if (typeof Plotly !== 'undefined') return resolve();
-                    if (idx >= cdns.length) return reject(new Error('All Plotly CDNs failed'));
-
-                    const src = cdns[idx++];
-                    const script = document.createElement('script');
-                    script.src = src;
-                    script.async = true;
-                    script.onload = () => {
-                        // give a tiny tick for Plotly to initialize
-                        setTimeout(() => {
-                            if (typeof Plotly !== 'undefined') return resolve();
-                            tryLoad();
-                        }, 50);
-                    };
-                    script.onerror = () => {
-                        // try next CDN
-                        tryLoad();
-                    };
-                    document.head.appendChild(script);
-                }
-
-                tryLoad();
-            });
-
-            return window.__plotly_loaderPromise;
-        }
-
-        function plotlySafeNewPlot(id, traces, layout, config) {
-            // Ensure Plotly is loaded then plot
-            loadPlotlyOnce().then(() => {
-                try {
-                    Plotly.newPlot(id, traces, layout, config);
-                } catch (e) {
-                    console.warn('Plotly.newPlot failed initially for', id, e);
-                }
-
-                const el = document.getElementById(id);
-                if (!el) return;
-
-                const tryResize = () => {
-                    try {
-                        if (typeof Plotly !== 'undefined' && Plotly.Plots) {
-                            Plotly.Plots.resize(el);
-                        }
-                    } catch (err) {
-                        // ignore
-                    }
-                };
-
-                setTimeout(tryResize, 150);
-                setTimeout(tryResize, 450);
-                setTimeout(tryResize, 900);
-            }).catch((err) => {
-                console.error('Plotly is not available after trying CDNs. Charts will not render for', id, err);
-            });
-        }
-
-        // --- 5. Events ---
-        async function loadEvents() {
-            const btn = document.getElementById('load-events-btn');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
-            btn.disabled = true;
-            
-            const cacheKey = `events_${state.currentPincode}`;
-            const cached = getCached(cacheKey);
-            
-            if (cached) {
-                renderEvents(cached);
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-                return;
-            }
-            
-            try {
-                const res = await fetch(`${state.apiUrl}/api/events`, {
-                    method: "POST",
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ 
-                        district: state.currentDistrict,
-                        state: state.currentState
-                    })
-                });
-                
-                if (!res.ok) throw new Error('Failed to fetch events');
-                
-                const events = await res.json();
-                
-                if (!Array.isArray(events)) {
-                    throw new Error('Invalid events data format');
-                }
-                
-                setCache(cacheKey, events);
-                renderEvents(events);
-            } catch (e) {
-                console.error('Events error:', e);
-                alert("Failed to load events: " + e.message);
-                
-                // Show fallback message
-                document.getElementById('events-grid').innerHTML = `
-                    <div class="col-span-full text-center text-slate-500 py-8">
-                        Unable to load events. Please try again later.
-                    </div>
-                `;
-            } finally {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            }
-        }
-
-        // Replace renderEvents function
-        function renderEvents(events) {
-            const container = document.getElementById('events-grid');
-            
-            if (!events || !Array.isArray(events) || events.length === 0) {
-                container.innerHTML = '<div class="col-span-full text-center text-slate-500 py-8">No events found for this area</div>';
-                return;
-            }
-            
-            container.innerHTML = events.map((e, idx) => `
-                <div class="event-card p-4 rounded-xl border transition cursor-pointer group" onclick="toggleEventExpand(${idx})">
-                    <div class="event-date text-xs font-bold mb-2">${e.date || 'TBD'}</div>
-                    <div class="event-name font-bold mb-1 line-clamp-2">${e.name}</div>
-                    <div class="event-location text-xs truncate">
-                        <i class="fas fa-map-pin mr-1"></i>${e.address || 'Location TBD'}
-                    </div>
-                    <div id="event-details-${idx}" class="hidden mt-3 pt-3 border-t border-white/10">
-                        ${e.description ? `<div class="text-xs mb-2">${e.description}</div>` : ''}
-                        ${e.website ? `<a href="${e.website}" target="_blank" class="text-xs text-blue-500 hover:underline inline-flex items-center gap-1">
-                            <i class="fas fa-external-link-alt"></i> Visit Website
-                        </a>` : '<div class="text-xs text-slate-500 italic">No website available</div>'}
-                    </div>
-                    <div class="text-xs text-slate-400 mt-2 text-right">
-                        <i class="fas fa-chevron-down" id="event-icon-${idx}"></i>
-                    </div>
+                <div class="chart-container" style="height:280px;">
+                  <canvas id="chart-worker-type"></canvas>
                 </div>
-            `).join('');
-        }
+              </div>
+            </div>
+          </div>
+        </section>
 
-        function toggleEventExpand(idx) {
-            const details = document.getElementById(`event-details-${idx}`);
-            const icon = document.getElementById(`event-icon-${idx}`);
-            
-            if (details.classList.contains('hidden')) {
-                details.classList.remove('hidden');
-                icon.classList.remove('fa-chevron-down');
-                icon.classList.add('fa-chevron-up');
-            } else {
-                details.classList.add('hidden');
-                icon.classList.remove('fa-chevron-up');
-                icon.classList.add('fa-chevron-down');
-            }
-        }
-        // --- 6. Leads ---
-        let currentCategory = 'industries'; // Track current tab
-        let leadsLoaded = false; // Track if leads have been loaded
-        async function loadLeads() {
-            if (leadsLoaded) {
-                // Already loaded, just show the data
-                document.getElementById('load-leads-btn').classList.add('hidden');
-                document.getElementById('leads-search-bar').classList.remove('hidden');
-                switchLeadsTab('industries');
-                return;
-            }
-            
-            // Check if coordinates are available
-            const coordsElement = document.getElementById('loc-coords');
-            if (!coordsElement || !coordsElement.textContent) {
-                alert('Please search for a pincode first to set the location.');
-                return;
-            }
-            
-            const coordsText = coordsElement.textContent;
-            const [lat, lng] = coordsText.split(',').map(s => parseFloat(s.trim()));
-            
-            // Validate coordinates
-            if (!lat || !lng || lat === 0 || lng === 0) {
-                alert('Please search for a pincode first to set the location.');
-                return;
-            }
-            
-            const btn = document.getElementById('load-leads-btn');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Loading...';
-            btn.disabled = true;
-            
-            showLoader("Fetching business leads...");
-            
-            try {
-                const cacheKey = `leads_${state.currentPincode}`;
-                const cached = getCached(cacheKey);
-                
-                if (cached) {
-                    state.leadsData = cached;
-                    leadsLoaded = true;
-                    btn.classList.add('hidden');
-                    document.getElementById('leads-search-bar').classList.remove('hidden');
-                    switchLeadsTab('industries');
-                    return; // hideLoader will be called in finally block
-                }
-                
-                const keywords = ['industry', 'insurance agency', 'bank', 'college', 'club gymkhana'];
-                const keyNames = ['industries', 'insurance', 'banks', 'colleges', 'clubs'];
-                state.leadsData = {};
-                
-                console.log(`API URL: ${state.apiUrl}, Coordinates: ${lat}, ${lng}`);
-                
-                for(let i = 0; i < keywords.length; i++) {
-                    try {
-                        const url = `${state.apiUrl}/api/places?lat=${lat}&lng=${lng}&keyword=${keywords[i]}`;
-                        console.log(`Fetching ${keyNames[i]} with URL: ${url}`);
-                        const response = await fetch(url);
-                        console.log(`Response for ${keyNames[i]}:`, response.status, response.ok);
-                        
-                        if (!response.ok) throw new Error(`Failed to fetch ${keyNames[i]}`);
-                        
-                        const placesData = await response.json();
-                        
-                        if (!Array.isArray(placesData)) {
-                            console.error(`Invalid data format for ${keyNames[i]}:`, placesData);
-                            state.leadsData[keyNames[i]] = [];
-                        } else {
-                            // Group places by company name, handling agent patterns
-                            const companiesMap = new Map();
-                            
-                            // Helper to extract parent company from agent names
-                            // e.g., "HDFC ERGO Insurance Agent: Raj Viren Parekh" -> "HDFC ERGO"
-                            function extractParentCompany(name) {
-                                const agentPatterns = [
-                                    /^(.+?)\s+(?:Insurance\s+)?Agent\s*[:\-]\s*(.+)$/i,
-                                    /^(.+?)\s+(?:Insurance\s+)?Advisor\s*[:\-]\s*(.+)$/i,
-                                    /^(.+?)\s+Representative\s*[:\-]\s*(.+)$/i,
-                                ];
-                                for (const pattern of agentPatterns) {
-                                    const match = name.match(pattern);
-                                    if (match) {
-                                        return { parent: match[1].trim(), agent: match[2].trim() };
-                                    }
-                                }
-                                return null;
-                            }
-                            
-                            placesData.forEach(place => {
-                                const originalName = place.name;
-                                const agentInfo = extractParentCompany(originalName);
-                                
-                                let companyKey, displayName, agentName;
-                                if (agentInfo) {
-                                    companyKey = agentInfo.parent;
-                                    displayName = agentInfo.parent;
-                                    agentName = agentInfo.agent;
-                                } else {
-                                    companyKey = originalName;
-                                    displayName = originalName;
-                                    agentName = null;
-                                }
-                                
-                                if (!companiesMap.has(companyKey)) {
-                                    companiesMap.set(companyKey, {
-                                        name: displayName,
-                                        category: keyNames[i],
-                                        locations: [],
-                                        agents: [],
-                                        location_count: 0,
-                                        closest_dist: Infinity,
-                                        avg_rating: 'N/A'
-                                    });
-                                }
-                                
-                                const company = companiesMap.get(companyKey);
-                                company.locations.push({
-                                    address: place.address,
-                                    dist: place.dist,
-                                    rating: place.rating,
-                                    lat: place.lat,
-                                    lng: place.lng,
-                                    place_id: place.place_id,
-                                    agent: agentName,
-                                    originalName: originalName
-                                });
-                                if (agentName && !company.agents.includes(agentName)) {
-                                    company.agents.push(agentName);
-                                }
-                            });
-                            
-                            // Calculate stats for each company
-                            const companiesArray = Array.from(companiesMap.values());
-                            companiesArray.forEach(company => {
-                                company.location_count = company.locations.length;
-                                company.closest_dist = Math.min(...company.locations.map(l => l.dist)).toFixed(1);
-                                
-                                const ratings = company.locations
-                                    .map(l => l.rating)
-                                    .filter(r => r !== 'N/A' && !isNaN(r))
-                                    .map(r => parseFloat(r));
-                                
-                                if (ratings.length > 0) {
-                                    company.avg_rating = (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1);
-                                }
-                            });
-                            
-                            state.leadsData[keyNames[i]] = companiesArray;
-                            console.log(`Loaded ${companiesArray.length} ${keyNames[i]} (from ${placesData.length} places)`);
-                        }
-                    } catch(e) { 
-                        console.error(`Failed to fetch ${keyNames[i]}:`, e);
-                        state.leadsData[keyNames[i]] = []; 
-                    }
-                }
-                
-                setCache(cacheKey, state.leadsData);
-                leadsLoaded = true;
-                
-                btn.classList.add('hidden');
-                document.getElementById('leads-search-bar').classList.remove('hidden');
-                switchLeadsTab('industries');
-                
-            } catch(error) {
-                console.error('Error loading leads:', error);
-                alert('Failed to load business leads: ' + error.message);
-            } finally {
-                // ALWAYS hide loader, even if there's an error
-                hideLoader();
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            }
-        }        // Global variable for leads data
-        let allLeadsData = [];
-        let userLocation = { lat: null, lng: null };
+        <!-- MODULE C: Businesses -->
+        <section class="dash-module" id="module-businesses" style="display:none;">
+          <div class="module-header">
+            <div class="module-icon module-icon--teal"><i class="fa-solid fa-building"></i></div>
+            <div>
+              <h2 class="module-title">Businesses in This Area</h2>
+              <p class="module-subtitle">Active companies and establishments within 10 km</p>
+            </div>
+            <div class="module-source-badge">Google Places / OSM</div>
+          </div>
 
-        // Update userLocation when coordinates are available
-        function updateLocationUI(loc) {
-            userLocation.lat = loc.lat;
-            userLocation.lng = loc.lng;
-            
-            document.getElementById('header-loc').textContent = `${loc.district}, ${loc.state}`;
-            document.getElementById('loc-title').textContent = loc.address;
-            document.getElementById('loc-subtitle').textContent = `${loc.district}, ${loc.state}`;
-            document.getElementById('loc-pin').textContent = `PIN: ${state.currentPincode}`;
-            document.getElementById('loc-coords').textContent = `${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`;
-        }
+          <!-- Business Search -->
+          <div class="biz-search-bar">
+            <div class="biz-search-input-wrap">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" id="biz-keyword" class="biz-search-input" placeholder="Search: banks, hospitals, colleges, industry…" value="industry" />
+            </div>
+            <button class="btn-primary btn-sm" id="btn-search-biz"><i class="fa-solid fa-search"></i> Search</button>
+          </div>
 
-        function searchCompanies() {
-            const searchInput = document.getElementById('company-search-input');
-            const keyword = searchInput.value.trim().toLowerCase();
-            
-            if (!leadsLoaded) {
-                alert('Leads are still loading. Please wait...');
-                return;
-            }
-            
-            const categoryData = state.leadsData[currentCategory] || [];
-            
-            if (!keyword) {
-                displayLeads(categoryData);
-                return;
-            }
-            
-            const filtered = categoryData.filter(company => 
-                company.name.toLowerCase().includes(keyword)
-            );
-            
-            displayLeads(filtered);
-        }
-        function displayLeads(companies) {
-            const tbody = document.getElementById('leads-table-body');
-            const noLeadsMsg = document.getElementById('no-leads-msg');
-            
-            tbody.innerHTML = '';
-            
-            if (!companies || companies.length === 0) {
-                tbody.classList.add('hidden');
-                noLeadsMsg.classList.remove('hidden');
-                noLeadsMsg.innerHTML = leadsLoaded 
-                    ? "No companies found in this category."
-                    : '<i class="fas fa-spinner fa-spin text-2xl mb-3"></i><div>Loading business leads...</div>';
-                return;
-            }
-            
-            tbody.classList.remove('hidden');
-            noLeadsMsg.classList.add('hidden');
-            
-            companies.forEach((company, index) => {
-                const uniqueId = `${currentCategory}-${index}`;
-                
-                const row = document.createElement('tr');
-                const hasMultipleLocations = company.location_count > 1;
-                const hasAgents = company.agents && company.agents.length > 0;
-                const isExpandable = hasMultipleLocations || hasAgents;
-                row.className = `hover:bg-white/5 transition ${isExpandable ? 'cursor-pointer' : ''}`;
-                
-                // Get the first location's address (or try to get from company data)
-                const displayAddress = company.locations && company.locations.length > 0 
-                    ? company.locations[0].address 
-                    : 'Address not available';
-                
-                // Build info badges
-                let infoBadges = '';
-                if (hasMultipleLocations) {
-                    infoBadges += `<span class="text-xs text-slate-500 ml-2">(${company.location_count} branches)</span>`;
-                }
-                if (hasAgents) {
-                    infoBadges += `<span class="text-xs text-purple-400 ml-2"><i class="fas fa-user-tag mr-1"></i>${company.agents.length} agent${company.agents.length > 1 ? 's' : ''}</span>`;
-                }
-                
-                row.innerHTML = `
-                    <td class="p-4">
-                        <div class="flex items-center gap-2">
-                            <div class="w-4 flex items-center justify-center flex-shrink-0">
-                                ${isExpandable ? `<i class="fas fa-chevron-right text-slate-500 transition-transform duration-200" id="chevron-${uniqueId}"></i>` : ''}
-                            </div>
-                            <span class="font-semibold text-slate-300 company-name-text">${company.name}</span>
-                            ${infoBadges}
-                        </div>
-                    </td>
-                    <td class="p-4 text-slate-300">${displayAddress}</td>
-                    <td class="p-4 text-slate-300">${company.closest_dist} km</td>
-                    <td class="p-4">
-                        ${company.avg_rating !== 'N/A' 
-                            ? `<span class="text-yellow-400"><i class="fas fa-star"></i> ${company.avg_rating}</span>`
-                            : '<span class="text-slate-500">N/A</span>'}
-                    </td>
-                    <td class="p-4 text-right">
-                        <button onclick="event.stopPropagation(); openContactModal('${company.name.replace(/'/g, "\\'")}', ${index}, '${currentCategory}')" 
-                                class="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded transition">
-                            <i class="fas fa-user-tie mr-1"></i>Prospect
-                        </button>
-                    </td>
-                `;
-                
-                // Only show dropdown for companies with multiple locations or agents
-                if (isExpandable) {
-                    row.onclick = () => toggleLocations(uniqueId);
-                    row.style.cursor = 'pointer';
-                }
-                tbody.appendChild(row);
-                
-                // Create expandable section if needed
-                if (isExpandable) {
-                    const locationsRow = document.createElement('tr');
-                    locationsRow.id = `locations-${uniqueId}`;
-                    locationsRow.className = 'hidden bg-slate-800/30';
-                    
-                    let expandedContent = '';
-                    
-                    // Show agents section if there are agents
-                    if (hasAgents) {
-                        const agentsHTML = company.agents.map((agent, agentIdx) => `
-                            <div class="inline-flex items-center gap-2 p-2 bg-purple-900/30 rounded-lg border border-purple-500/20 hover:border-purple-500/50 transition">
-                                <i class="fas fa-user-tag text-purple-400"></i>
-                                <span class="text-sm text-white">${agent}</span>
-                            </div>
-                        `).join('');
-                        
-                        expandedContent += `
-                            <div class="mb-4">
-                                <div class="text-xs text-purple-400 font-bold uppercase mb-2"><i class="fas fa-users mr-1"></i>Agents</div>
-                                <div class="flex flex-wrap gap-2">
-                                    ${agentsHTML}
-                                </div>
-                            </div>
-                        `;
-                    }
-                    
-                    // Show locations if multiple
-                    if (hasMultipleLocations) {
-                        const locationsHTML = (company.locations || []).map((loc, locIdx) => {
-                            const agentBadge = loc.agent ? `<span class="text-xs text-purple-400 ml-2"><i class="fas fa-user-tag mr-1"></i>${loc.agent}</span>` : '';
-                            return `
-                                <div class="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-white/5 hover:border-emerald-500/30 transition">
-                                    <div class="flex-1">
-                                        <div class="text-sm text-slate-300 mb-1">
-                                            <i class="fas fa-map-marker-alt text-emerald-500 mr-2"></i>${loc.address || 'Address not available'}${agentBadge}
-                                        </div>
-                                        <div class="text-xs text-slate-500">
-                                            ${loc.dist !== undefined && loc.dist !== null ? `${loc.dist} km away` : 'Distance not available'}
-                                            ${loc.rating !== 'N/A' && loc.rating !== undefined && loc.rating !== null ? `• <span class="text-yellow-400"><i class="fas fa-star"></i> ${loc.rating}</span>` : ''}
-                                        </div>
-                                    </div>
-                                    <a href="https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lng}${loc.place_id ? `&query_place_id=${loc.place_id}` : ''}" 
-                                    target="_blank"
-                                    class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded transition ml-4">
-                                        <i class="fas fa-map mr-1"></i>Map
-                                    </a>
-                                </div>
-                            `;
-                        }).join('');
-                        
-                        expandedContent += `
-                            <div>
-                                <div class="text-xs text-emerald-400 font-bold uppercase mb-2"><i class="fas fa-map-marker-alt mr-1"></i>Locations</div>
-                                <div class="space-y-2">
-                                    ${locationsHTML}
-                                </div>
-                            </div>
-                        `;
-                    }
-                    
-                    locationsRow.innerHTML = `
-                        <td colspan="5" class="p-0">
-                            <div class="p-4">
-                                ${expandedContent}
-                            </div>
-                        </td>
-                    `;
-                    tbody.appendChild(locationsRow);
-                }
-            });
-        }
+          <!-- Quick chips -->
+          <div class="biz-chips">
+            <button class="chip active" data-kw="industry">Industry</button>
+            <button class="chip" data-kw="bank">Banks</button>
+            <button class="chip" data-kw="hospital">Hospitals</button>
+            <button class="chip" data-kw="college">Colleges</button>
+            <button class="chip" data-kw="hotel">Hotels</button>
+            <button class="chip" data-kw="restaurant">Restaurants</button>
+            <button class="chip" data-kw="insurance agency">Insurance</button>
+          </div>
 
-        function toggleLocations(uniqueId) {
-            const locationsRow = document.getElementById(`locations-${uniqueId}`);
-            const chevron = document.getElementById(`chevron-${uniqueId}`);
-            
-            if (locationsRow.classList.contains('hidden')) {
-                locationsRow.classList.remove('hidden');
-                chevron.style.transform = 'rotate(90deg)';
-            } else {
-                locationsRow.classList.add('hidden');
-                chevron.style.transform = 'rotate(0deg)';
-            }
-        }
+          <!-- Summary Metrics -->
+          <div class="metrics-row" id="biz-summary-row">
+            <div class="metric-card">
+              <span class="metric-label">Results Found</span>
+              <span class="metric-value" id="biz-count">—</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Avg. Distance</span>
+              <span class="metric-value" id="biz-avg-dist">—</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Nearest</span>
+              <span class="metric-value" id="biz-nearest">—</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Top Category</span>
+              <span class="metric-value" id="biz-top-category">—</span>
+            </div>
+          </div>
 
-        function openContactModal(companyName, idx, category) {
-            console.log('Opening contact modal for:', companyName, 'Category:', category, 'Index:', idx);
-            
-            if (!state.leadsData[category] || !state.leadsData[category][idx]) {
-                console.error('Company data not found:', category, idx);
-                alert('Error: Company data not found');
-                return;
-            }
-            
-            const company = state.leadsData[category][idx];
-            
-            state.currentLead = { 
-                name: companyName, 
-                category: category, 
-                idx: idx,
-                company: company
-            };
-            
-            document.getElementById('modal-title').textContent = "Prospecting";
-            document.getElementById('modal-subtitle').textContent = companyName;
-            resetModalStep(1);
-            
-            modal.classList.remove('hidden');
-            setTimeout(() => {
-                modalContent.classList.remove('scale-95', 'opacity-0');
-                modalContent.classList.add('scale-100', 'opacity-100');
-            }, 10);
-        }
-        // Remove switchLeadsTab function - no longer needed
-        function switchLeadsTab(category) {
-            if (!leadsLoaded) {
-                return;
-            }
-            
-            currentCategory = category;
-            
-            // Update tab styling
-            document.querySelectorAll('.leads-tab').forEach(btn => {
-                const btnText = btn.textContent.toLowerCase().trim();
-                const isActive = btnText === category;
-                
-                if (isActive) {
-                    btn.className = "leads-tab active px-4 py-2 rounded-lg text-sm font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 whitespace-nowrap";
-                } else {
-                    btn.className = "leads-tab px-4 py-2 rounded-lg text-sm font-bold bg-slate-800 text-slate-400 hover:bg-slate-700 border border-transparent whitespace-nowrap";
-                }
-            });
-            
-            // Clear search and display category data
-            document.getElementById('company-search-input').value = '';
-            const categoryData = state.leadsData[category] || [];
-            displayLeads(categoryData);
-        }
+          <!-- Business Loading -->
+          <div id="biz-loading" class="module-loading" style="display:none;">
+            <div class="spinner spinner--sm"></div>
+            <span>Fetching nearby businesses…</span>
+          </div>
 
-        // --- 7. Modal Logic ---
-        const modal = document.getElementById('contact-modal');
-        const modalContent = document.getElementById('modal-content');
+          <!-- Business List -->
+          <div id="biz-list" class="biz-list"></div>
+          <div id="biz-empty" class="empty-state" style="display:none;">
+            <i class="fa-solid fa-building-circle-xmark"></i>
+            <p>No businesses found for this keyword. Try a different search.</p>
+          </div>
+        </section>
 
-        function closeModal() {
-            modalContent.classList.remove('scale-100', 'opacity-100');
-            modalContent.classList.add('scale-95', 'opacity-0');
-            setTimeout(() => modal.classList.add('hidden'), 300);
-        }
+        <!-- MODULE D: Lead Intelligence -->
+        <section class="dash-module" id="module-leads" style="display:none;">
+          <div class="module-header">
+            <div class="module-icon module-icon--amber"><i class="fa-solid fa-user-tie"></i></div>
+            <div>
+              <h2 class="module-title">Identify Key Decision-Makers</h2>
+              <p class="module-subtitle">Access leadership and professional insights using publicly available online data.</p>
+            </div>
+            <div class="module-source-badge module-source-badge--kyl">
+              <i class="fa-solid fa-bolt"></i> KnowYourLead
+            </div>
+          </div>
 
-        function resetModalStep(step) {
-            document.querySelectorAll('[id^="modal-step-"]').forEach(el => el.classList.add('hidden'));
-            document.getElementById(`modal-step-${step}`).classList.remove('hidden');
-        }
-
-        async function fetchLeadership() {
-            console.log('Fetching leadership for:', state.currentLead.name);
-            const btn = document.querySelector('#modal-step-1 button');
-            if (!btn) {
-                console.error('Button not found for leadership fetch');
-                return;
-            }
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching...';
-            btn.disabled = true;
-
-            try {
-                // Check cache first
-                const cacheKey = `leadership_${state.currentLead.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
-                const cached = getCached(cacheKey);
-                
-                let leaders;
-                if (cached) {
-                    console.log('Using cached leadership data');
-                    leaders = cached;
-                } else {
-                    // Fetch from API
-                    const res = await fetch(`${state.apiUrl}/api/leadership`, {
-                        method: "POST",
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ company_name: state.currentLead.name })
-                    });
-                    
-                    console.log('Leadership API response status:', res.status, res.ok);
-                    
-                    if (!res.ok) throw new Error(`Failed to fetch leadership: ${res.status} ${res.statusText}`);
-                    
-                    leaders = await res.json();
-                    console.log('Leadership profiles received:', leaders);
-                    
-                    // Cache the results
-                    setCache(cacheKey, leaders);
-                }
-
-                if (!leaders || leaders.length === 0) {
-                    console.log('No leaders found');
-                    document.getElementById('leadership-results').innerHTML = `
-                        <div class="text-center text-slate-500 py-4">
-                            No leadership profiles found. Try searching manually on LinkedIn.
-                        </div>
-                    `;
-                    resetModalStep(2);
-                    return;
-                }
-
-                // Save leaders to state for export and later reference
-                state.lastLeaders = leaders;
-                document.getElementById('export-leaders-btn').classList.remove('hidden');
-                const container = document.getElementById('leadership-results');
-                const cardBgClass = isDarkMode ? 'bg-slate-800' : 'bg-gray-100';
-                const textClass = isDarkMode ? 'text-white' : 'text-gray-900';
-                const subtitleClass = isDarkMode ? 'text-blue-400' : 'text-blue-600';
-                
-                console.log(`Creating cards for ${leaders.length} leaders`);
-                
-                container.innerHTML = leaders.map((l, idx) => {
-                    console.log(`Leader ${idx}:`, {name: l.name, title: l.title, linkedin: l.linkedin});
-                    return `
-                    <div class="p-3 ${cardBgClass} rounded-lg border border-white/5 flex justify-between items-center">
-                        <div>
-                            <div class="font-bold text-sm ${textClass}">${l.name}</div>
-                            <div class="text-xs ${subtitleClass}">${l.title}</div>
-                        </div>
-                        <button 
-                            onclick="selectLeadership('${l.name.replace(/'/g, "\\'")}', '${l.title.replace(/'/g, "\\'")}', '${l.linkedin}')" 
-                            class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded transition cursor-pointer"
-                            type="button">
-                            Select <i class="fas fa-chevron-right ml-1"></i>
-                        </button>
-                    </div>
-                `;
-                }).join('');
-                
-                console.log('Leadership cards rendered, resetting to step 2');
-                resetModalStep(2);
-                console.log('Modal step 2 activated');
-            } catch(e) {
-                console.error('Leadership search error:', e);
-                alert("Error searching leadership: " + e.message);
-            } finally {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            }
-        }
-
-        // Add credit display
-        let userCredits = { email: 10, phone: 2 };
-
-        // Fetch credits on page load
-        async function fetchCredits() {
-            try {
-                const res = await fetch(`${state.apiUrl}/api/credits`);
-                if (res.ok) {
-                    userCredits = await res.json();
-                    updateCreditDisplay();
-                }
-            } catch(e) {
-                console.error('Failed to fetch credits:', e);
-            }
-        }
-
-        function updateCreditDisplay() {
-            // Add this to your UI somewhere visible
-            const creditDisplay = `
-                <div class="text-xs text-gray-400 space-y-1">
-                    <div>📧 Email Credits: ${userCredits.email_credits}</div>
-                    <div>📱 Phone Credits: ${userCredits.phone_credits}</div>
+          <div class="kyl-banner">
+            <div class="kyl-banner-left">
+              <div class="kyl-logo-row">
+                <div class="kyl-logo-icon"><i class="fa-solid fa-magnifying-glass-chart"></i></div>
+                <div>
+                  <div class="kyl-logo-name">KnowYourLead</div>
+                  <div class="kyl-logo-tagline">Agentic Web Intelligence Platform</div>
                 </div>
-            `;
-            // Insert this in your modal or header
-        }
+              </div>
+              <p class="kyl-desc">KnowYourLead uses an AI-powered search agent to surface public professional profiles, leadership details, and digital footprints for any person or company — all from publicly available information.</p>
+            </div>
+            <div class="kyl-banner-right">
+              <div class="kyl-feature"><i class="fa-solid fa-check-circle"></i> Real-time web search</div>
+              <div class="kyl-feature"><i class="fa-solid fa-check-circle"></i> Leadership & org charts</div>
+              <div class="kyl-feature"><i class="fa-solid fa-check-circle"></i> Digital footprint mapping</div>
+              <div class="kyl-feature"><i class="fa-solid fa-check-circle"></i> Company intelligence</div>
+            </div>
+          </div>
 
-        function selectLeadership(name, title, linkedin) {
-            console.log('selectLeadership called with:', {name, title, linkedin});
+          <!-- Lead Preview -->
+          <div class="leads-section-header">
+            <h3 class="leads-section-title">Preview: Leadership in This Area</h3>
+            <p class="leads-section-sub">Enter a company name to preview decision-makers. Full profiles available on KnowYourLead.</p>
+          </div>
 
-            if (!state.currentLead) {
-                console.error('No current lead set!');
-                alert('Error: No company selected');
-                return;
-            }
+          <div class="lead-search-bar">
+            <div class="biz-search-input-wrap">
+              <i class="fa-solid fa-building"></i>
+              <input type="text" id="lead-company-input" class="biz-search-input" placeholder="Enter company name (e.g., Infosys, HDFC Bank)…" />
+            </div>
+            <button class="btn-primary btn-sm" id="btn-search-leads"><i class="fa-solid fa-search"></i> Find Leaders</button>
+          </div>
 
-            // Normalize linkedin values - treat 'null'/'None'/'undefined' as missing
-            let normalizedLinkedin = linkedin;
-            if (!normalizedLinkedin || String(normalizedLinkedin).toLowerCase() === 'null' || String(normalizedLinkedin).toLowerCase() === 'none' || String(normalizedLinkedin).toLowerCase() === 'undefined') {
-                normalizedLinkedin = null;
-            }
+          <!-- Lead Loading -->
+          <div id="leads-loading" class="module-loading" style="display:none;">
+            <div class="spinner spinner--sm"></div>
+            <span>Searching public profiles…</span>
+          </div>
 
-            state.currentLead.person = { name, title, linkedin: normalizedLinkedin, linkedinLookupAttempted: false };
-            console.log('Updated currentLead:', state.currentLead);
+          <!-- Lead Cards -->
+          <div id="leads-list" class="leads-list"></div>
+          <div id="leads-empty" class="empty-state" style="display:none;">
+            <i class="fa-solid fa-user-slash"></i>
+            <p>No leadership data found. Try a different company name.</p>
+          </div>
 
-            document.getElementById('res-name').textContent = name;
-            document.getElementById('res-role').textContent = title;
+          <!-- Primary KYL CTA -->
+          <div class="kyl-cta-block" id="kyl-cta">
+            <div class="kyl-cta-content">
+              <h3>View Full Lead Profiles on KnowYourLead</h3>
+              <p>Deep-dive into professional histories, decision networks, and public digital footprints.</p>
+              <div class="kyl-context-tag">
+                <i class="fa-solid fa-link"></i>
+                Location source: Pinbook — PIN <span id="kyl-pin-context">—</span>
+              </div>
+            </div>
+            <button class="btn-kyl" id="btn-open-kyl">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i>
+              Open KnowYourLead
+            </button>
+          </div>
+        </section>
 
-            const linkedinLink = document.getElementById('res-linkedin');
-            if (normalizedLinkedin) {
-                linkedinLink.href = normalizedLinkedin.startsWith('http') ? normalizedLinkedin : "https://" + normalizedLinkedin;
-                linkedinLink.textContent = normalizedLinkedin;
-            } else {
-                linkedinLink.href = '#';
-                linkedinLink.textContent = 'Not available';
-            }
+      </div>
+    </main>
+  </div>
 
-            // Update credit display
-            document.getElementById('email-credits-count').textContent = userCredits.email_credits || 0;
-            document.getElementById('phone-credits-count').textContent = userCredits.phone_credits || 0;
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- SCREEN 4: KnowYourLead Transition Overlay  -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="screen-kyl-overlay" class="overlay-screen" style="display:none;" aria-modal="true" role="dialog">
+    <div class="overlay-card">
+      <div class="overlay-icon-wrap">
+        <div class="overlay-icon">
+          <i class="fa-solid fa-magnifying-glass-chart"></i>
+        </div>
+        <div class="overlay-pulse"></div>
+      </div>
+      <h2 class="overlay-title">Redirecting to KnowYourLead</h2>
+      <p class="overlay-sub">You are now accessing deeper professional insights powered by public intelligence.</p>
 
-            // Hide contact data and show credit warning buttons
-            document.getElementById('contact-data').classList.add('hidden');
-            document.getElementById('contact-loading').classList.add('hidden');
-            document.getElementById('credit-warning-section').classList.remove('hidden');
+      <div class="overlay-context-card">
+        <div class="overlay-context-row">
+          <span class="overlay-context-label">Location Source</span>
+          <span class="overlay-context-val">Pinbook</span>
+        </div>
+        <div class="overlay-context-row">
+          <span class="overlay-context-label">PIN Code</span>
+          <span class="overlay-context-val" id="overlay-pin-val">—</span>
+        </div>
+        <div class="overlay-context-row">
+          <span class="overlay-context-label">Location</span>
+          <span class="overlay-context-val" id="overlay-location-val">—</span>
+        </div>
+      </div>
 
-            // Always show a Back button to go back to results
-            resetModalStep(3);
-            // Ensure there's an easy back control visible (we also add a small button in the footer)
-        }
+      <div class="overlay-actions">
+        <button class="btn-ghost" id="btn-overlay-cancel"><i class="fa-solid fa-xmark"></i> Cancel</button>
+        <button class="btn-kyl" id="btn-overlay-proceed">
+          Continue to KnowYourLead <i class="fa-solid fa-arrow-right"></i>
+        </button>
+      </div>
 
-        // New function with credit confirmation
-        async function requestContactInfo(type) {
-            console.log('requestContactInfo called with type:', type);
-            console.log('Current user credits:', userCredits);
-            
-            const creditCost = type === 'email' ? 1 : (type === 'phone' ? 1 : 2);
-            const creditType = type === 'email' ? 'email_credits' : 'phone_credits';
-            const remaining = userCredits[creditType];
-            
-            console.log(`Requesting ${type}, cost: ${creditCost}, remaining: ${remaining}`);
-            
-            if (remaining < creditCost) {
-                alert(`❌ Insufficient ${type} credits! You have ${remaining} credits remaining.`);
-                return;
-            }
-            
-            const confirmed = confirm(
-                `⚠️ Fetching ${type} will use ${creditCost} credit.\n\n` +
-                `Current ${type} credits: ${remaining}\n` +
-                `After this request: ${remaining - creditCost}\n\n` +
-                `Do you want to proceed?`
-            );
-            
-            if (!confirmed) return;
-            
-            await fetchContactDetails(type);
-        }
+      <p class="overlay-disclaimer">
+        <i class="fa-solid fa-lock"></i>
+        KnowYourLead uses only publicly available information.
+      </p>
+    </div>
+  </div>
 
-        async function fetchContactDetails(requestType = 'both') {
-            console.log('fetchContactDetails called with type:', requestType);
-            console.log('Current lead person:', state.currentLead?.person);
-            
-            document.getElementById('credit-warning-section').classList.add('hidden');
-            document.getElementById('contact-loading').classList.remove('hidden');
+  <!-- Toast Notification -->
+  <div id="toast" class="toast" aria-live="polite"></div>
 
-            try {
-                    const person = state.currentLead?.person;
-                    let linkedinUrl = person?.linkedin;
-                    const fetchEmail = requestType === 'email' || requestType === 'both';
-                    const fetchPhone = requestType === 'phone' || requestType === 'both';
-
-                    // If linkedin missing, try resolving it via AI/web before contacting ContactOut
-                    if (person && (!linkedinUrl || String(linkedinUrl).toLowerCase() === 'null' || String(linkedinUrl).toLowerCase() === 'none' || String(linkedinUrl).toLowerCase() === 'undefined') && !person.linkedinLookupAttempted) {
-                        try {
-                            person.linkedinLookupAttempted = true;
-                            const resolveRes = await fetch(`${state.apiUrl}/api/resolve_linkedin`, {
-                                method: 'POST',
-                                headers: {'Content-Type': 'application/json'},
-                                body: JSON.stringify({
-                                    name: state.currentLead.person?.name || '',
-                                    title: state.currentLead.person?.title || '',
-                                    company: state.currentLead.company?.name || state.currentLead.name || ''
-                                })
-                            });
-
-                            if (resolveRes.ok) {
-                                const jr = await resolveRes.json();
-                                if (jr && jr.linkedin) {
-                                    linkedinUrl = jr.linkedin;
-                                    person.linkedin = linkedinUrl;
-                                    const linkedinLink = document.getElementById('res-linkedin');
-                                    linkedinLink.href = linkedinUrl.startsWith('http') ? linkedinUrl : `https://${linkedinUrl}`;
-                                    linkedinLink.textContent = linkedinUrl;
-                                    console.log('Resolved LinkedIn URL via resolver:', linkedinUrl);
-                                }
-                            } else {
-                                console.warn('LinkedIn resolver failed', resolveRes.status);
-                            }
-                        } catch (e) {
-                            console.warn('LinkedIn resolver error', e);
-                        }
-                    }
-
-                    // Build request payload: prefer linkedin_url, otherwise send name/title/company for backend search
-                    const payload = { fetch_email: fetchEmail, fetch_phone: fetchPhone };
-                    if (linkedinUrl && String(linkedinUrl).toLowerCase() !== 'null' && String(linkedinUrl).toLowerCase() !== 'none' && String(linkedinUrl).toLowerCase() !== 'undefined') {
-                        payload.linkedin_url = linkedinUrl;
-                    } else {
-                        // send name/title/company so backend can try ContactOut search as last resort
-                        payload.name = state.currentLead.person?.name || '';
-                        payload.title = state.currentLead.person?.title || '';
-                        payload.company = state.currentLead.company?.name || state.currentLead.name || '';
-                    }
-
-                    console.log('Fetching from API with payload:', payload);
-
-                    const res = await fetch(`${state.apiUrl}/api/contactout`, {
-                        method: "POST",
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify(payload)
-                    });
-                
-                if (!res.ok) {
-                    const error = await res.json().catch(() => ({}));
-                    const errorMsg = error.detail || 'Contact not found';
-                    // Show friendly message instead of throwing for 404
-                    if (res.status === 404) {
-                        alert(`⚠️ ${errorMsg}\n\nThis person's contact details are not available in ContactOut.`);
-                        document.getElementById('credit-warning-section').classList.remove('hidden');
-                        document.getElementById('contact-loading').classList.add('hidden');
-                        return;
-                    }
-                    throw new Error(errorMsg);
-                }
-                
-                const data = await res.json();
-                console.log('Contact data received:', data);
-
-                // Merge returned contact info into cached leaders (for export)
-                try {
-                    if (state.lastLeaders && Array.isArray(state.lastLeaders) && state.currentLead && state.currentLead.person) {
-                        const personName = state.currentLead.person.name;
-                        const found = state.lastLeaders.find(l => l.name === personName);
-                        if (found) {
-                            if (data.email) found.email = data.email;
-                            if (data.phone) found.phone = data.phone;
-                        }
-                    }
-                } catch (e) {
-                    console.warn('Failed to merge contact into lastLeaders', e);
-                }
-
-                // Update displays
-                if (data.email) {
-                    document.getElementById('res-email').textContent = data.email;
-                    document.getElementById('email-row').classList.remove('hidden');
-                }
-                
-                if (data.phone) {
-                    document.getElementById('res-phone').textContent = data.phone;
-                    document.getElementById('phone-row').classList.remove('hidden');
-                }
-
-                // Update credits
-                if (data.remaining_credits) {
-                    userCredits = data.remaining_credits;
-                    console.log('Credits updated:', userCredits);
-                    updateCreditDisplay();
-                }
-
-                document.getElementById('contact-loading').classList.add('hidden');
-                document.getElementById('contact-data').classList.remove('hidden');
-                
-                // Show success message
-                const creditsUsed = data.credits_used || {};
-                const usedMsg = [];
-                if (creditsUsed.email) usedMsg.push('1 email credit');
-                if (creditsUsed.phone) usedMsg.push('1 phone credit');
-                
-                if (usedMsg.length > 0) {
-                    alert(`✅ Contact information retrieved!\n\nCredits used: ${usedMsg.join(', ')}`);
-                }
-                
-            } catch(e) {
-                console.error('Error fetching contact details:', e);
-                alert("❌ Failed to fetch contact details: " + e.message);
-                document.getElementById('credit-warning-section').classList.remove('hidden');
-                document.getElementById('contact-loading').classList.add('hidden');
-            }
-        }
-
-        // Initialize credits on page load
-        window.addEventListener('DOMContentLoaded', fetchCredits);
-
-        // --- Export Leaders ---
-        function exportLeaders() {
-            const leaders = state.lastLeaders || [];
-            if (!leaders || leaders.length === 0) {
-                alert('No leaders to export');
-                return;
-            }
-
-            const rows = [];
-            rows.push(['Name', 'Title', 'LinkedIn', 'Email', 'Phone']);
-            leaders.forEach(l => {
-                const name = l.name || '';
-                const title = l.title || '';
-                const linkedin = l.linkedin && String(l.linkedin).toLowerCase() !== 'null' ? l.linkedin : '';
-                // Attempt to use contact info if present on leader object
-                const email = l.email || '';
-                const phone = l.phone || '';
-                rows.push([name, title, linkedin, email, phone]);
-            });
-
-            const csvContent = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `leaders_export_${Date.now()}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(() => {
-                URL.revokeObjectURL(url);
-                a.remove();
-            }, 5000);
-        }
-    </script>
+  <script src="static/app.js"></script>
 </body>
 </html>
