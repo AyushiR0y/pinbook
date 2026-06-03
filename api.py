@@ -1178,7 +1178,7 @@ Return a JSON array. For each person:
 
 Example:
 [
-  {"name": "Satya Nadella", "title": "CEO", "linkedin": null},
+  {"name": "Satya Nadella", "title": "CEO", "linkedin": https://www.linkedin.com/in/satyanadella},
   {"name": "Amy Hood", "title": "CFO", "linkedin": null}
 ]
 

@@ -340,7 +340,14 @@ async function loadDemographics(pin) {
     const res = await fetch(`${API_BASE}/api/charts/education?state=${encodeURIComponent(loc.state)}`);
     if (!res.ok) throw new Error('Education data unavailable');
     const d = await res.json();
-    if (d && d.x && d.y) renderFunnelChart('chart-education', d.x, d.y);
+    if (Array.isArray(d) && d.length) {
+        const labels = d.map(row => row['Education Level']);
+        const values = d.map(row => row['Count']);
+        renderFunnelChart('chart-education', labels, values);
+     } 
+    else {
+        throw new Error('Invalid education data');
+        }
   } catch (e) {
     console.warn('Education chart error:', e);
     renderEducationFunnelFallback();
@@ -630,32 +637,33 @@ const CHART_DEFAULTS = {
     }
   }
 };
-
-// Funnel Chart Renderer
 function renderFunnelChart(canvasId, labels, values) {
   destroyChart(canvasId);
+
   const ctx = document.getElementById(canvasId);
   if (!ctx) return;
 
+  // ✅ Ensure labels are always strings (Chart.js categorical axis requirement)
+  const safeLabels = labels.map(l => String(l));
+
   // Sort by value descending for funnel effect
-  const sorted = labels.map((label, i) => ({ label, value: values[i] }))
-    .sort((a, b) => b.value - a.value);
-  
+  const sorted = safeLabels.map((label, i) => ({
+    label,
+    value: values[i]
+  })).sort((a, b) => b.value - a.value);
+
   const sortedLabels = sorted.map(d => d.label);
   const sortedValues = sorted.map(d => d.value);
   const maxValue = Math.max(...sortedValues);
 
-  // Create gradient colors for funnel (blue to darker blue)
+  // Funnel color gradient (light → dark)
   const colors = [
     '#005eac',
     '#0052a3',
     '#00479a',
     '#003d91',
-    '#003288',
+    '#003288'
   ];
-
-  // Normalize values to create funnel width effect (0-100)
-  const widths = sortedValues.map(v => Math.max(20, (v / maxValue) * 100));
 
   new Chart(ctx, {
     type: 'bar',
@@ -666,7 +674,7 @@ function renderFunnelChart(canvasId, labels, values) {
         data: sortedValues,
         backgroundColor: colors.slice(0, sortedLabels.length),
         borderRadius: 8,
-        borderSkipped: false,
+        borderSkipped: false
       }]
     },
     options: {
@@ -678,25 +686,24 @@ function renderFunnelChart(canvasId, labels, values) {
         tooltip: {
           ...CHART_DEFAULTS.plugins.tooltip,
           callbacks: {
-            label: ctx => `${formatNum(ctx.parsed.x)} people`,
+            label: ctx => `${formatNum(ctx.parsed.x)} people`
           }
-        },
-        filler: { propagate: true }
+        }
       },
       scales: {
         x: {
-          stacked: false,
           grid: { color: 'rgba(0,0,0,.04)' },
-          ticks: { 
-            font: { family: 'Inter', size: 11 }, 
+          ticks: {
+            font: { family: 'Inter', size: 11 },
             color: '#7a90a8',
             callback: v => formatNum(v)
           }
         },
         y: {
+          type: 'category',
           grid: { display: false },
-          ticks: { 
-            font: { family: 'Inter', size: 12, weight: '500' }, 
+          ticks: {
+            font: { family: 'Inter', size: 12, weight: '500' },
             color: '#4a6080'
           }
         }
@@ -704,6 +711,80 @@ function renderFunnelChart(canvasId, labels, values) {
     }
   });
 }
+// // Funnel Chart Renderer
+// function renderFunnelChart(canvasId, labels, values) {
+//   destroyChart(canvasId);
+//   const ctx = document.getElementById(canvasId);
+//   if (!ctx) return;
+//   const safeLabels = labels.map(l => String(l));
+
+//   // Sort by value descending for funnel effect
+//   const sorted = labels.map((label, i) => ({ label, value: values[i] }))
+//     .sort((a, b) => b.value - a.value);
+  
+//   const sortedLabels = sorted.map(d => d.label);
+//   const sortedValues = sorted.map(d => d.value);
+//   const maxValue = Math.max(...sortedValues);
+
+//   // Create gradient colors for funnel (blue to darker blue)
+//   const colors = [
+//     '#005eac',
+//     '#0052a3',
+//     '#00479a',
+//     '#003d91',
+//     '#003288',
+//   ];
+
+//   // Normalize values to create funnel width effect (0-100)
+//   const widths = sortedValues.map(v => Math.max(20, (v / maxValue) * 100));
+
+//   new Chart(ctx, {
+//     type: 'bar',
+//     data: {
+//       labels: sortedLabels,
+//       datasets: [{
+//         label: 'Population',
+//         data: sortedValues,
+//         backgroundColor: colors.slice(0, sortedLabels.length),
+//         borderRadius: 8,
+//         borderSkipped: false,
+//       }]
+//     },
+//     options: {
+//       indexAxis: 'y',
+//       responsive: true,
+//       maintainAspectRatio: true,
+//       plugins: {
+//         legend: { display: false },
+//         tooltip: {
+//           ...CHART_DEFAULTS.plugins.tooltip,
+//           callbacks: {
+//             label: ctx => `${formatNum(ctx.parsed.x)} people`,
+//           }
+//         },
+//         filler: { propagate: true }
+//       },
+//       scales: {
+//         x: {
+//           stacked: false,
+//           grid: { color: 'rgba(0,0,0,.04)' },
+//           ticks: { 
+//             font: { family: 'Inter', size: 11 }, 
+//             color: '#7a90a8',
+//             callback: v => formatNum(v)
+//           }
+//         },
+//         y: {
+//           grid: { display: false },
+//           ticks: { 
+//             font: { family: 'Inter', size: 12, weight: '500' }, 
+//             color: '#4a6080'
+//           }
+//         }
+//       }
+//     }
+//   });
+// }
 function renderPieChart(canvasId, labels, values, colors) {
   destroyChart(canvasId);
   const ctx = document.getElementById(canvasId);
