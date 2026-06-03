@@ -1016,12 +1016,31 @@ body {
   background: var(--primary-light);
 }
 
-/* Business List */
+/* Business List
 .biz-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
   margin-top: 16px;
+} */
+.biz-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;           /* increase spacing */
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+/* Smooth scrollbar (optional but nice) */
+.biz-list::-webkit-scrollbar {
+  width: 6px;
+}
+.biz-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+.biz-list::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .biz-item {
@@ -1033,6 +1052,7 @@ body {
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   transition: var(--transition);
+  background-clip: padding-box;
   cursor: pointer;
 }
 
