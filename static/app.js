@@ -222,6 +222,20 @@ function destroyChart(id) {
 // ═══════════════════════════════════════════════════════════════
 //  SCREEN 3 — DASHBOARD
 // ═══════════════════════════════════════════════════════════════
+function renderMap(lat, lng) {
+  const mapContainer = document.getElementById('map-container');
+
+  mapContainer.innerHTML = `
+    <iframe
+      width="100%"
+      height="100%"
+      frameborder="0"
+      style="border:0"
+      referrerpolicy="no-referrer-when-downgrade"
+      src="https://www.openstreetmap.org/export/embed.html?bbox=${lng-0.02},${lat-0.02},${lng+0.02},${lat+0.02}&layer=mapnik&marker=${lat},${lng}">
+    </iframe>
+  `;
+}
 async function initDashboard() {
   const loc = state.locationData;
   const pin = state.pin;
@@ -260,6 +274,17 @@ async function initDashboard() {
   // Loading
   $('dash-loading').style.display = 'flex';
   $('dash-modules').style.display = 'none';
+
+  function updateDashboardLocation(data) {
+    document.getElementById("dash-pin-value").textContent = data.pincode;
+
+    document.getElementById("dash-address").textContent =
+      data.full_address || "Address not available";
+
+    if (data.lat && data.lng) {
+      renderMap(data.lat, data.lng);
+    }
+  }
 
   try {
     const promises = [];
@@ -461,16 +486,32 @@ async function loadBusinesses(keyword) {
       item.className = 'biz-item';
       item.innerHTML = `
         <div class="biz-item-rank">${i + 1}</div>
+
         <div class="biz-item-main">
-          <div class="biz-item-name">${escHtml(p.name)}</div>
-          <div class="biz-item-address"><i class="fa-solid fa-location-dot" style="color:var(--text-muted);font-size:10px;margin-right:4px;"></i>${escHtml(p.address)}</div>
+            <div class="biz-item-name">${escHtml(p.name)}</div>
+            <div class="biz-item-address">
+            <i class="fa-solid fa-location-dot"
+                style="color:var(--text-muted);font-size:10px;margin-right:4px;"></i>
+            ${escHtml(p.address)}
+            </div>
         </div>
+
         <div class="biz-item-meta">
-          <span class="biz-item-dist">${typeof p.dist === 'number' ? p.dist.toFixed(1) + ' km' : '—'}</span>
-          ${rating}
-          <span class="biz-item-category">${escHtml(cat)}</span>
+            <button
+            class="biz-prospect-btn"
+            data-company="${escHtml(p.name)}">
+            <i class="fa-solid fa-user-tie"></i>
+            Prospect
+            </button>
+
+            <span class="biz-item-dist">
+            ${typeof p.dist === 'number' ? p.dist.toFixed(1) + ' km' : '—'}
+            </span>
+
+            ${rating}
+            <span class="biz-item-category">${escHtml(cat)}</span>
         </div>
-      `;
+        `;
       list.appendChild(item);
     });
 
@@ -1092,6 +1133,100 @@ function renderWorkerTypeChart(workerCounts) {
     }
   });
 }
+async function prospectCompany(companyName) {
+  try {
+    console.log('Prospecting:', companyName);
+
+    const res = await fetch(`${API_BASE}/api/leadership`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company_name: companyName })
+    });
+
+    if (!res.ok) throw new Error('Leadership fetch failed');
+
+    const leaders = await res.json();
+    console.log('Leadership result:', leaders);
+
+    if (!leaders.length) {
+      alert(`No leadership data found for ${companyName}`);
+      return;
+    }
+
+    // TODO: Replace this with modal / side panel later
+    alert(
+      `Leadership for ${companyName}:\n\n` +
+      leaders.map(l => `${l.name} — ${l.title}`).join('\n')
+    );
+
+  } catch (err) {
+    console.error(err);
+    alert('Failed to fetch leadership data');
+  }
+}
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.biz-prospect-btn');
+  if (!btn) return;
+
+  e.stopPropagation();
+
+  const companyName = btn.dataset.company;
+  if (!companyName) return;
+
+  const panel = document.getElementById('prospect-result');
+
+  try {
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
+
+    const res = await fetch(`${API_BASE}/api/leadership`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company_name: companyName })
+    });
+
+    if (!res.ok) throw new Error('Leadership fetch failed');
+
+    const leaders = await res.json();
+
+    if (!leaders.length) {
+      panel.innerHTML = `<p class="text-xs text-slate-400">
+        No leadership data found for ${companyName}
+      </p>`;
+      panel.classList.remove('hidden');
+      return;
+    }
+
+    panel.innerHTML = `
+      <div class="prospect-header">
+        <h4>Leadership — ${companyName}</h4>
+        <button id="prospect-close-btn">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      ${leaders.map(l => `
+        <div class="prospect-leader">
+          <div class="prospect-leader-name">${l.name}</div>
+          <div class="prospect-leader-title">${l.title}</div>
+        </div>
+      `).join('')}
+    `;
+    
+
+    panel.classList.remove('hidden');
+
+  } catch (err) {
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<i class="fa-solid fa-user-tie"></i> Prospect`;
+  }
+  document.getElementById('prospect-close-btn')
+        .addEventListener('click', () => {
+            document.getElementById('prospect-result').classList.add('hidden');
+    });
+});
 
 // ═══════════════════════════════════════════════════════════════
 //  UTILS

@@ -174,22 +174,71 @@ def get_overpass_filters(keyword: str) -> List[str]:
     return []
 
 
+# def get_osm_address(tags: Dict[str, Any]) -> str:
+#     """Build a readable address from OSM tags."""
+#     if not tags:
+#         return "Address not available"
+
+#     parts = [
+#         tags.get("addr:housenumber", ""),
+#         tags.get("addr:street", ""),
+#         tags.get("addr:suburb", ""),
+#         tags.get("addr:city", ""),
+#         tags.get("addr:state", ""),
+#     ]
+#     address = ", ".join([part for part in parts if part])
+#     return address if address else tags.get("name", "Address not available")
+
 def get_osm_address(tags: Dict[str, Any]) -> str:
-    """Build a readable address from OSM tags."""
+    """
+    Build the best possible human-readable address from OSM tags.
+    Uses addr:* first, then falls back to place-based tags.
+    """
     if not tags:
         return "Address not available"
 
-    parts = [
-        tags.get("addr:housenumber", ""),
-        tags.get("addr:street", ""),
-        tags.get("addr:suburb", ""),
-        tags.get("addr:city", ""),
-        tags.get("addr:state", ""),
-    ]
-    address = ", ".join([part for part in parts if part])
-    return address if address else tags.get("name", "Address not available")
+    parts = []
 
+    # ── Exact address (best case)
+    housenumber = tags.get("addr:housenumber")
+    street = tags.get("addr:street")
+    if housenumber and street:
+        parts.append(f"{housenumber} {street}")
+    elif street:
+        parts.append(street)
 
+    # ── Locality
+    for key in [
+        "addr:suburb",
+        "suburb",
+        "neighbourhood",
+        "addr:city",
+        "city",
+        "town",
+        "village"
+    ]:
+        val = tags.get(key)
+        if val and val not in parts:
+            parts.append(val)
+
+    # ── District / County
+    for key in ["district", "county"]:
+        val = tags.get(key)
+        if val and val not in parts:
+            parts.append(val)
+
+    # ── State
+    state = tags.get("addr:state") or tags.get("state")
+    if state:
+        parts.append(state)
+
+    # ── Postcode
+    postcode = tags.get("addr:postcode")
+    if postcode:
+        parts.append(postcode)
+
+    address = ", ".join(parts)
+    return address if address else "Address not available"
 def build_osm_types(tags: Dict[str, Any]) -> List[str]:
     """Build a compact list of OSM category tags."""
     return [
