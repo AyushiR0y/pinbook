@@ -13,7 +13,7 @@ const KYL_URL  = 'https://knowyourlead.ai'; // Placeholder — update to real UR
 // ── State ─────────────────────────────────────────────────────
 const state = {
   pin: '',
-  locationData: null,  // { lat, lng, district, state, address }
+  locationData: null,  // { lat, lng, district, state, officename, address }
   demoData: null,      // from /api/search/{pin}
   selectedModules: new Set(),
   chartsRendered: {},
@@ -222,6 +222,20 @@ function destroyChart(id) {
 // ═══════════════════════════════════════════════════════════════
 //  SCREEN 3 — DASHBOARD
 // ═══════════════════════════════════════════════════════════════
+function renderMap(lat, lng) {
+  const mapContainer = document.getElementById('map-container');
+
+  mapContainer.innerHTML = `
+    <iframe
+      width="100%"
+      height="100%"
+      frameborder="0"
+      style="border:0"
+      referrerpolicy="no-referrer-when-downgrade"
+      src="https://www.openstreetmap.org/export/embed.html?bbox=${lng-0.02},${lat-0.02},${lng+0.02},${lat+0.02}&layer=mapnik&marker=${lat},${lng}">
+    </iframe>
+  `;
+}
 async function initDashboard() {
   const loc = state.locationData;
   const pin = state.pin;
@@ -229,6 +243,10 @@ async function initDashboard() {
   // Hero
   $('dash-pin-value').textContent = pin;
   $('breadcrumb-pin').textContent = `PIN ${pin}`;
+
+  // Road/area: strip postal suffixes (S.O, B.O, H.O) from officename
+  const rawOffice = (loc.officename || '').replace(/\s*(s\.?o\.?|b\.?o\.?|h\.?o\.?)\s*$/i, '').trim();
+  $('dash-road').textContent = titleCase(rawOffice);
   $('dash-city').textContent = titleCase(loc.district);
   $('dash-state').textContent = titleCase(loc.state);
 
@@ -260,6 +278,17 @@ async function initDashboard() {
   // Loading
   $('dash-loading').style.display = 'flex';
   $('dash-modules').style.display = 'none';
+
+  function updateDashboardLocation(data) {
+    document.getElementById("dash-pin-value").textContent = data.pincode;
+
+    document.getElementById("dash-address").textContent =
+      data.full_address || "Address not available";
+
+    if (data.lat && data.lng) {
+      renderMap(data.lat, data.lng);
+    }
+  }
 
   try {
     const promises = [];
@@ -340,7 +369,14 @@ async function loadDemographics(pin) {
     const res = await fetch(`${API_BASE}/api/charts/education?state=${encodeURIComponent(loc.state)}`);
     if (!res.ok) throw new Error('Education data unavailable');
     const d = await res.json();
-    if (d && d.x && d.y) renderFunnelChart('chart-education', d.x, d.y);
+    if (Array.isArray(d) && d.length) {
+        const labels = d.map(row => row['Education Level']);
+        const values = d.map(row => row['Count']);
+        renderFunnelChart('chart-education', labels, values);
+     } 
+    else {
+        throw new Error('Invalid education data');
+        }
   } catch (e) {
     console.warn('Education chart error:', e);
     renderEducationFunnelFallback();
@@ -454,16 +490,32 @@ async function loadBusinesses(keyword) {
       item.className = 'biz-item';
       item.innerHTML = `
         <div class="biz-item-rank">${i + 1}</div>
+
         <div class="biz-item-main">
-          <div class="biz-item-name">${escHtml(p.name)}</div>
-          <div class="biz-item-address"><i class="fa-solid fa-location-dot" style="color:var(--text-muted);font-size:10px;margin-right:4px;"></i>${escHtml(p.address)}</div>
+            <div class="biz-item-name">${escHtml(p.name)}</div>
+            <div class="biz-item-address">
+            <i class="fa-solid fa-location-dot"
+                style="color:var(--text-muted);font-size:10px;margin-right:4px;"></i>
+            ${escHtml(p.address)}
+            </div>
         </div>
+
         <div class="biz-item-meta">
-          <span class="biz-item-dist">${typeof p.dist === 'number' ? p.dist.toFixed(1) + ' km' : '—'}</span>
-          ${rating}
-          <span class="biz-item-category">${escHtml(cat)}</span>
+            <button
+            class="biz-prospect-btn"
+            data-company="${escHtml(p.name)}">
+            <i class="fa-solid fa-user-tie"></i>
+            Prospect
+            </button>
+
+            <span class="biz-item-dist">
+            ${typeof p.dist === 'number' ? p.dist.toFixed(1) + ' km' : '—'}
+            </span>
+
+            ${rating}
+            <span class="biz-item-category">${escHtml(cat)}</span>
         </div>
-      `;
+        `;
       list.appendChild(item);
     });
 
@@ -630,32 +682,33 @@ const CHART_DEFAULTS = {
     }
   }
 };
-
-// Funnel Chart Renderer
 function renderFunnelChart(canvasId, labels, values) {
   destroyChart(canvasId);
+
   const ctx = document.getElementById(canvasId);
   if (!ctx) return;
 
+  // ✅ Ensure labels are always strings (Chart.js categorical axis requirement)
+  const safeLabels = labels.map(l => String(l));
+
   // Sort by value descending for funnel effect
-  const sorted = labels.map((label, i) => ({ label, value: values[i] }))
-    .sort((a, b) => b.value - a.value);
-  
+  const sorted = safeLabels.map((label, i) => ({
+    label,
+    value: values[i]
+  })).sort((a, b) => b.value - a.value);
+
   const sortedLabels = sorted.map(d => d.label);
   const sortedValues = sorted.map(d => d.value);
   const maxValue = Math.max(...sortedValues);
 
-  // Create gradient colors for funnel (blue to darker blue)
+  // Funnel color gradient (light → dark)
   const colors = [
     '#005eac',
     '#0052a3',
     '#00479a',
     '#003d91',
-    '#003288',
+    '#003288'
   ];
-
-  // Normalize values to create funnel width effect (0-100)
-  const widths = sortedValues.map(v => Math.max(20, (v / maxValue) * 100));
 
   new Chart(ctx, {
     type: 'bar',
@@ -666,7 +719,7 @@ function renderFunnelChart(canvasId, labels, values) {
         data: sortedValues,
         backgroundColor: colors.slice(0, sortedLabels.length),
         borderRadius: 8,
-        borderSkipped: false,
+        borderSkipped: false
       }]
     },
     options: {
@@ -678,25 +731,24 @@ function renderFunnelChart(canvasId, labels, values) {
         tooltip: {
           ...CHART_DEFAULTS.plugins.tooltip,
           callbacks: {
-            label: ctx => `${formatNum(ctx.parsed.x)} people`,
+            label: ctx => `${formatNum(ctx.parsed.x)} people`
           }
-        },
-        filler: { propagate: true }
+        }
       },
       scales: {
         x: {
-          stacked: false,
           grid: { color: 'rgba(0,0,0,.04)' },
-          ticks: { 
-            font: { family: 'Inter', size: 11 }, 
+          ticks: {
+            font: { family: 'Inter', size: 11 },
             color: '#7a90a8',
             callback: v => formatNum(v)
           }
         },
         y: {
+          type: 'category',
           grid: { display: false },
-          ticks: { 
-            font: { family: 'Inter', size: 12, weight: '500' }, 
+          ticks: {
+            font: { family: 'Inter', size: 12, weight: '500' },
             color: '#4a6080'
           }
         }
@@ -704,6 +756,80 @@ function renderFunnelChart(canvasId, labels, values) {
     }
   });
 }
+// // Funnel Chart Renderer
+// function renderFunnelChart(canvasId, labels, values) {
+//   destroyChart(canvasId);
+//   const ctx = document.getElementById(canvasId);
+//   if (!ctx) return;
+//   const safeLabels = labels.map(l => String(l));
+
+//   // Sort by value descending for funnel effect
+//   const sorted = labels.map((label, i) => ({ label, value: values[i] }))
+//     .sort((a, b) => b.value - a.value);
+  
+//   const sortedLabels = sorted.map(d => d.label);
+//   const sortedValues = sorted.map(d => d.value);
+//   const maxValue = Math.max(...sortedValues);
+
+//   // Create gradient colors for funnel (blue to darker blue)
+//   const colors = [
+//     '#005eac',
+//     '#0052a3',
+//     '#00479a',
+//     '#003d91',
+//     '#003288',
+//   ];
+
+//   // Normalize values to create funnel width effect (0-100)
+//   const widths = sortedValues.map(v => Math.max(20, (v / maxValue) * 100));
+
+//   new Chart(ctx, {
+//     type: 'bar',
+//     data: {
+//       labels: sortedLabels,
+//       datasets: [{
+//         label: 'Population',
+//         data: sortedValues,
+//         backgroundColor: colors.slice(0, sortedLabels.length),
+//         borderRadius: 8,
+//         borderSkipped: false,
+//       }]
+//     },
+//     options: {
+//       indexAxis: 'y',
+//       responsive: true,
+//       maintainAspectRatio: true,
+//       plugins: {
+//         legend: { display: false },
+//         tooltip: {
+//           ...CHART_DEFAULTS.plugins.tooltip,
+//           callbacks: {
+//             label: ctx => `${formatNum(ctx.parsed.x)} people`,
+//           }
+//         },
+//         filler: { propagate: true }
+//       },
+//       scales: {
+//         x: {
+//           stacked: false,
+//           grid: { color: 'rgba(0,0,0,.04)' },
+//           ticks: { 
+//             font: { family: 'Inter', size: 11 }, 
+//             color: '#7a90a8',
+//             callback: v => formatNum(v)
+//           }
+//         },
+//         y: {
+//           grid: { display: false },
+//           ticks: { 
+//             font: { family: 'Inter', size: 12, weight: '500' }, 
+//             color: '#4a6080'
+//           }
+//         }
+//       }
+//     }
+//   });
+// }
 function renderPieChart(canvasId, labels, values, colors) {
   destroyChart(canvasId);
   const ctx = document.getElementById(canvasId);
@@ -1011,6 +1137,100 @@ function renderWorkerTypeChart(workerCounts) {
     }
   });
 }
+async function prospectCompany(companyName) {
+  try {
+    console.log('Prospecting:', companyName);
+
+    const res = await fetch(`${API_BASE}/api/leadership`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company_name: companyName })
+    });
+
+    if (!res.ok) throw new Error('Leadership fetch failed');
+
+    const leaders = await res.json();
+    console.log('Leadership result:', leaders);
+
+    if (!leaders.length) {
+      alert(`No leadership data found for ${companyName}`);
+      return;
+    }
+
+    // TODO: Replace this with modal / side panel later
+    alert(
+      `Leadership for ${companyName}:\n\n` +
+      leaders.map(l => `${l.name} — ${l.title}`).join('\n')
+    );
+
+  } catch (err) {
+    console.error(err);
+    alert('Failed to fetch leadership data');
+  }
+}
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.biz-prospect-btn');
+  if (!btn) return;
+
+  e.stopPropagation();
+
+  const companyName = btn.dataset.company;
+  if (!companyName) return;
+
+  const panel = document.getElementById('prospect-result');
+
+  try {
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
+
+    const res = await fetch(`${API_BASE}/api/leadership`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company_name: companyName })
+    });
+
+    if (!res.ok) throw new Error('Leadership fetch failed');
+
+    const leaders = await res.json();
+
+    if (!leaders.length) {
+      panel.innerHTML = `<p class="text-xs text-slate-400">
+        No leadership data found for ${companyName}
+      </p>`;
+      panel.classList.remove('hidden');
+      return;
+    }
+
+    panel.innerHTML = `
+      <div class="prospect-header">
+        <h4>Leadership — ${companyName}</h4>
+        <button id="prospect-close-btn">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      ${leaders.map(l => `
+        <div class="prospect-leader">
+          <div class="prospect-leader-name">${l.name}</div>
+          <div class="prospect-leader-title">${l.title}</div>
+        </div>
+      `).join('')}
+    `;
+    
+
+    panel.classList.remove('hidden');
+
+  } catch (err) {
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<i class="fa-solid fa-user-tie"></i> Prospect`;
+  }
+  document.getElementById('prospect-close-btn')
+        .addEventListener('click', () => {
+            document.getElementById('prospect-result').classList.add('hidden');
+    });
+});
 
 // ═══════════════════════════════════════════════════════════════
 //  UTILS

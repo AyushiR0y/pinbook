@@ -183,6 +183,7 @@
         <div class="dash-location-block">
           <i class="fa-solid fa-location-dot"></i>
           <div>
+            <div class="dash-road" id="dash-road"></div>
             <div class="dash-city" id="dash-city">—</div>
             <div class="dash-state" id="dash-state">—</div>
           </div>
@@ -408,7 +409,7 @@
           <div class="biz-search-bar">
             <div class="biz-search-input-wrap">
               <i class="fa-solid fa-magnifying-glass"></i>
-              <input type="text" id="biz-keyword" class="biz-search-input" placeholder="Search: banks, hospitals, colleges, industry…" value="industry" />
+              <input type="text" id="biz-keyword" class="biz-search-input" placeholder="Search: clubs, banks, hospitals, colleges, industry…" value="industry" />
             </div>
             <button class="btn-primary btn-sm" id="btn-search-biz"><i class="fa-solid fa-search"></i> Search</button>
           </div>
@@ -416,6 +417,7 @@
           <!-- Quick chips -->
           <div class="biz-chips">
             <button class="chip active" data-kw="industry">Industry</button>
+            <button class="chip" data-kw="club">Clubs</button>
             <button class="chip" data-kw="bank">Banks</button>
             <button class="chip" data-kw="hospital">Hospitals</button>
             <button class="chip" data-kw="college">Colleges</button>
@@ -452,6 +454,18 @@
 
           <!-- Business List -->
           <div id="biz-list" class="biz-list"></div>
+
+          <!-- Prospect Panel -->
+          <div id="prospect-result" class="prospect-panel hidden">
+            <div class="prospect-header">
+              <h4 id="prospect-title">Leadership</h4>
+              <button id="prospect-close-btn">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <div id="prospect-body"></div>
+          </div>
+
           <div id="biz-empty" class="empty-state" style="display:none;">
             <i class="fa-solid fa-building-circle-xmark"></i>
             <p>No businesses found for this keyword. Try a different search.</p>

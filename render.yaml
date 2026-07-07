@@ -2,12 +2,15 @@ services:
   - type: web
     name: PinBook
     runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
     plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /
+    autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: "3.11.9"
       - key: MAPPLS_CLIENT_ID
         sync: false
       - key: MAPPLS_CLIENT_SECRET
@@ -17,7 +20,7 @@ services:
       - key: AZURE_OPENAI_ENDPOINT
         sync: false
       - key: AZURE_OPENAI_API_VERSION
-        value: 2024-02-15-preview
+        value: "2024-02-15-preview"
       - key: AZURE_OPENAI_DEPLOYMENT_NAME
         sync: false
       - key: GOOGLE_PLACES_API_KEY
