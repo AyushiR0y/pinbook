@@ -13,7 +13,7 @@ const KYL_URL  = 'https://knowyourlead.ai'; // Placeholder — update to real UR
 // ── State ─────────────────────────────────────────────────────
 const state = {
   pin: '',
-  locationData: null,  // { lat, lng, district, state, address }
+  locationData: null,  // { lat, lng, district, state, officename, address }
   demoData: null,      // from /api/search/{pin}
   selectedModules: new Set(),
   chartsRendered: {},
@@ -243,6 +243,10 @@ async function initDashboard() {
   // Hero
   $('dash-pin-value').textContent = pin;
   $('breadcrumb-pin').textContent = `PIN ${pin}`;
+
+  // Road/area: strip postal suffixes (S.O, B.O, H.O) from officename
+  const rawOffice = (loc.officename || '').replace(/\s*(s\.?o\.?|b\.?o\.?|h\.?o\.?)\s*$/i, '').trim();
+  $('dash-road').textContent = titleCase(rawOffice);
   $('dash-city').textContent = titleCase(loc.district);
   $('dash-state').textContent = titleCase(loc.state);
 

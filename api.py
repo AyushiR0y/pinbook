@@ -769,6 +769,7 @@ async def search_location(pincode: str):
                 "lng": safe_float(row.get('longitude', 0)),
                 "district": str(row.get('district', '')).strip(), 
                 "state": str(row.get('statename', '')).strip(),
+                "officename": str(row.get('officename', '')).strip(),
                 "address": f"{row.get('officename', '')}, {row.get('district', '')}, {row.get('statename', '')}"
             }
     
