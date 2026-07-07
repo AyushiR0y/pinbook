@@ -1,6 +1,7 @@
 import os
 import math
 import asyncio
+import concurrent.futures
 import requests
 import pandas as pd
 import uvicorn
@@ -14,6 +15,14 @@ from pydantic import BaseModel
 import json
 from openai import AzureOpenAI
 from bs4 import BeautifulSoup
+
+# Inject Windows system certificate store so Python trusts corporate/proxy root CAs.
+# This fixes SSLCertVerificationError on networks with SSL inspection.
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except ImportError:
+    pass  # truststore not installed; fall back to certifi bundle
 
 # Load Environment Variables
 load_dotenv()
@@ -277,7 +286,7 @@ def search_places_via_nominatim(lat: float, lng: float, keyword: str, radius_m: 
         headers = {
             "User-Agent": "leadgenerator/1.0 (nearby-business-fallback)",
         }
-        response = requests.get("https://nominatim.openstreetmap.org/search", params=params, headers=headers, timeout=20, verify=False)
+        response = requests.get("https://nominatim.openstreetmap.org/search", params=params, headers=headers, timeout=20, verify=True)
         response.raise_for_status()
         data = response.json()
     except Exception as error:
@@ -316,6 +325,21 @@ def search_places_via_nominatim(lat: float, lng: float, keyword: str, radius_m: 
     return places[:limit]
 
 
+def _query_overpass_endpoint(endpoint: str, overpass_query: str, headers: dict) -> dict:
+    """Query a single Overpass endpoint. Raises on any failure so the caller can skip it."""
+    response = requests.post(
+        endpoint,
+        data={"data": overpass_query},
+        headers=headers,
+        timeout=(8, 20),  # 8s connect, 20s read
+        verify=True,      # uses truststore-patched Windows cert store
+    )
+    if response.status_code == 429:
+        raise Exception("Rate limited")
+    response.raise_for_status()
+    return response.json()
+
+
 def search_places_via_osm(lat: float, lng: float, keyword: str, radius_m: int = 10000, limit: int = 60) -> List[Dict[str, Any]]:
     """Search nearby places using OSM Overpass as fallback when Google Places fails."""
     filters = get_overpass_filters(keyword)
@@ -327,7 +351,7 @@ def search_places_via_osm(lat: float, lng: float, keyword: str, radius_m: int = 
         query_blocks.append(f"nwr[{filter_expr}](around:{radius_m},{lat},{lng});")
 
     overpass_query = f"""
-    [out:json][timeout:25];
+    [out:json][timeout:15];
     (
       {''.join(query_blocks)}
     );
@@ -336,28 +360,29 @@ def search_places_via_osm(lat: float, lng: float, keyword: str, radius_m: int = 
 
     overpass_endpoints = [
         "https://overpass-api.de/api/interpreter",
-        "https://overpass.kumi.systems/api/interpreter",
+        "https://overpass.openstreetmap.fr/api/interpreter",
         "https://overpass.private.coffee/api/interpreter",
     ]
     headers = {
         "User-Agent": "leadgenerator/1.0 (nearby-business-fallback)",
     }
 
+    # Fire all endpoints in parallel — take the first successful response.
+    # This avoids waiting the full timeout per endpoint when one is slow/down.
     data = None
-    for endpoint in overpass_endpoints:
-        try:
-            response = requests.post(endpoint, data={"data": overpass_query}, headers=headers, timeout=20, verify=False)
-
-            if response.status_code == 429:
-                print(f"Overpass rate limited at {endpoint}")
-                continue
-
-            response.raise_for_status()
-            data = response.json()
-            if data.get("elements"):
-                break
-        except Exception as error:
-            print(f"OSM Overpass endpoint failed ({endpoint}): {str(error)}")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(overpass_endpoints)) as executor:
+        future_to_ep = {
+            executor.submit(_query_overpass_endpoint, ep, overpass_query, headers): ep
+            for ep in overpass_endpoints
+        }
+        for future in concurrent.futures.as_completed(future_to_ep):
+            ep = future_to_ep[future]
+            try:
+                data = future.result()
+                print(f"OSM Overpass succeeded via {ep}")
+                break  # first valid response wins; remaining threads will be abandoned
+            except Exception as error:
+                print(f"OSM Overpass endpoint failed ({ep}): {str(error)})")
 
     if not data:
         print("OSM Overpass failed on all endpoints, trying Nominatim fallback")
