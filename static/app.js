@@ -8,7 +8,7 @@
 
 // ── Config ────────────────────────────────────────────────────
 const API_BASE = '';  // Same origin — FastAPI at /api/...
-const KYL_URL  = 'https://knowyourlead.ai'; // Placeholder — update to real URL
+const KYL_URL  = 'https://knowyourleads-1.onrender.com';
 
 // ── State ─────────────────────────────────────────────────────
 const state = {

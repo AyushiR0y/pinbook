@@ -141,16 +141,21 @@ def calculate_distance_km(source_lat: float, source_lng: float, target_lat: floa
 
 
 def get_overpass_filters(keyword: str) -> List[str]:
-    """Map UI lead keywords to Overpass filters for OSM fallback."""
+    """Map UI lead keywords to Overpass filters for OSM fallback.
+
+    Rules for cheap queries:
+    - Always use key=value form (never bare values — causes full-tag-scan).
+    - Prefer node/way over nwr (relations are rare for businesses).
+    """
     normalized = (keyword or "").strip().lower()
 
     filters_map = {
         "industry": [
-            '"industrial"',
             '"man_made"="works"',
             '"office"="company"',
             '"shop"="wholesale"',
-            '"craft"',
+            '"craft"="industrial"',
+            '"landuse"="industrial"',
         ],
         "insurance agency": [
             '"office"="insurance"',
@@ -267,6 +272,17 @@ def build_osm_types(tags: Dict[str, Any]) -> List[str]:
 
 def search_places_via_nominatim(lat: float, lng: float, keyword: str, radius_m: int = 10000, limit: int = 60) -> List[Dict[str, Any]]:
     """Fallback search using Nominatim when Overpass is rate limited."""
+
+    NOMINATIM_EXCLUDE_KEYWORDS = {
+        "industry": [
+            "bus depot", "bus stand", "bus station", "bus terminal",
+            "bus stop", "bus yard", "msrtc", "st depot", "state transport",
+            "railway station", "train station", "metro station",
+            "petrol pump", "fuel station", "petrol bunk",
+            "toll", "toll plaza", "parking",
+        ]
+    }
+    exclude_list = NOMINATIM_EXCLUDE_KEYWORDS.get(keyword.strip().lower(), [])
     try:
         delta_lat = radius_m / 111320.0
         delta_lng = radius_m / max(111320.0 * math.cos(math.radians(lat)), 1e-6)
@@ -297,6 +313,10 @@ def search_places_via_nominatim(lat: float, lng: float, keyword: str, radius_m: 
     for item in data:
         place_name = str(item.get("name") or item.get("display_name") or "").strip()
         if not place_name:
+            continue
+
+        # Skip excluded place types by name match
+        if any(excl in place_name.lower() for excl in exclude_list):
             continue
 
         place_lat = item.get("lat")
@@ -331,7 +351,7 @@ def _query_overpass_endpoint(endpoint: str, overpass_query: str, headers: dict) 
         endpoint,
         data={"data": overpass_query},
         headers=headers,
-        timeout=(8, 20),  # 8s connect, 20s read
+        timeout=(8, 25),  # 8s connect, 25s read — must exceed server [timeout:20]
         verify=True,      # uses truststore-patched Windows cert store
     )
     if response.status_code == 429:
@@ -346,16 +366,22 @@ def search_places_via_osm(lat: float, lng: float, keyword: str, radius_m: int = 
     if not filters:
         return []
 
+    # Cap radius at 5 km — larger areas return thousands of elements and time out.
+    effective_radius = min(radius_m, 5000)
+
+    # Use node + way only (not relations) — relations are rare for businesses and
+    # are the most expensive element type to resolve server-side.
     query_blocks = []
     for filter_expr in filters:
-        query_blocks.append(f"nwr[{filter_expr}](around:{radius_m},{lat},{lng});")
+        query_blocks.append(f"node[{filter_expr}](around:{effective_radius},{lat},{lng});")
+        query_blocks.append(f"way[{filter_expr}](around:{effective_radius},{lat},{lng});")
 
     overpass_query = f"""
-    [out:json][timeout:15];
+    [out:json][timeout:20];
     (
       {''.join(query_blocks)}
     );
-    out center;
+    out tags center;
     """
 
     overpass_endpoints = [
@@ -388,11 +414,28 @@ def search_places_via_osm(lat: float, lng: float, keyword: str, radius_m: int = 
         print("OSM Overpass failed on all endpoints, trying Nominatim fallback")
         return search_places_via_nominatim(lat, lng, keyword, radius_m=radius_m, limit=limit)
 
+    # Keywords in names that should be excluded from industry results
+    INDUSTRY_EXCLUDE_KEYWORDS = {
+        "industry": [
+            "bus depot", "bus stand", "bus station", "bus terminal",
+            "bus stop", "bus yard", "msrtc", "st depot", "state transport",
+            "railway station", "train station", "metro station",
+            "petrol pump", "fuel station", "petrol bunk",
+            "toll", "toll plaza", "parking",
+        ]
+    }
+    exclude_list = INDUSTRY_EXCLUDE_KEYWORDS.get(keyword.strip().lower(), [])
+
     places = []
     for element in data.get("elements", []):
         tags = element.get("tags", {})
         place_name = str(tags.get("name", "")).strip()
         if not place_name:
+            continue
+
+        # Skip excluded place types by name match
+        place_name_lower = place_name.lower()
+        if any(excl in place_name_lower for excl in exclude_list):
             continue
 
         place_lat = element.get("lat")
