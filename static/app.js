@@ -58,8 +58,9 @@ function showToast(msg, duration = 3000) {
 // ═══════════════════════════════════════════════════════════════
 function formatNum(n) {
   if (!n && n !== 0) return '—';
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+  if (n >= 10_000_000) return (n / 10_000_000).toFixed(1) + ' Cr';
+  if (n >= 100_000)    return (n / 100_000).toFixed(1) + ' L';
+  if (n >= 1_000)      return (n / 1_000).toFixed(1) + 'K';
   return n.toString();
 }
 
